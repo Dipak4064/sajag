@@ -7,6 +7,23 @@ import { sosCreateSchema, sosStatusUpdateSchema } from '@sajag/validation';
 export const sosRouter = Router();
 const ws = WebSocketService.getInstance();
 
+// GET /api/sos
+sosRouter.get('/', async (req, res, next) => {
+  try {
+    const requests = await prisma.sOSRequest.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        user: true,
+        assignedTeam: true
+      }
+    });
+    res.json({ success: true, data: requests });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/sos (Citizen triggers SOS)
 sosRouter.post('/', async (req, res, next) => {
   try {

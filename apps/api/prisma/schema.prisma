@@ -28,6 +28,7 @@ model User {
   status         String          @default("UNKNOWN") // SAFE | UNSAFE | NO_RESPONSE | UNKNOWN
   municipalityId String
   municipality   Municipality    @relation(fields: [municipalityId], references: [id])
+  alerts         Alert[]
   responses      UserResponse[]
   sosRequests    SOSRequest[]
   reports        CitizenReport[]
@@ -83,6 +84,7 @@ model Alert {
   eventId    String
   event      DisasterEvent  @relation(fields: [eventId], references: [id])
   userId     String
+  user       User           @relation(fields: [userId], references: [id])
   status     String         @default("NOTIFYING") // NOTIFYING | WAITING_RESPONSE | SAFE | UNSAFE | NO_RESPONSE | ESCALATED
   attempts   Int            @default(0)
   createdAt  DateTime       @default(now())

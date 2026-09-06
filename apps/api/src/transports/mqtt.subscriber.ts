@@ -10,6 +10,19 @@ export class MqttSubscriber {
 
   public connect(): Promise<void> {
     return new Promise((resolve) => {
+      let resolved = false;
+      const safeResolve = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        logger.warn(`API MQTT Subscriber connection timeout (${this.brokerUrl}). Continuing in background...`);
+        safeResolve();
+      }, 3000);
+
       logger.info(`API MQTT Subscriber connecting to ${this.brokerUrl}...`);
       this.client = mqtt.connect(this.brokerUrl, {
         reconnectPeriod: 2500,
@@ -23,7 +36,8 @@ export class MqttSubscriber {
         // Subscribe to all device telemetry and heartbeats
         this.client?.subscribe('prakop/device/+/telemetry', { qos: 1 });
         this.client?.subscribe('prakop/device/+/heartbeat', { qos: 0 });
-        resolve();
+        clearTimeout(timeout);
+        safeResolve();
       });
 
       this.client.on('message', async (topic, message) => {

@@ -18,6 +18,7 @@
     "db:generate": "npm run db:generate --workspace=apps/api",
     "db:push": "npm run db:push --workspace=apps/api",
     "db:seed": "npm run db:seed --workspace=apps/api",
+    "broker": "node infrastructure/broker.js",
     "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d",
     "infra:down": "docker compose -f infrastructure/docker-compose.yml down"
   },
@@ -31,5 +32,8 @@
     "whisper"
   ],
   "author": "SAJAG Team",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "aedes": "^1.1.2"
+  }
 }
