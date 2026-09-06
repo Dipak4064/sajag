@@ -4,6 +4,25 @@ import { sensorIngestionService, SensorIngestionService } from '../../../modules
 import { parseMqttTelemetry } from './mqtt.telemetry.parser';
 
 export class MqttSubscriber {
+  private pending = new Map<string, Buffer>();
+  private draining = false;
+
+  private async drain() {
+    if (this.draining) return;
+    this.draining = true;
+    try {
+      while (this.pending.size) {
+        const [topic, message] = this.pending.entries().next().value!;
+        this.pending.delete(topic);
+        try {
+          await this.ingestionService.ingestReading(parseMqttTelemetry(topic, message), 'MQTT');
+        } catch (err: any) {
+          logger.warn({ code: err.code || err.statusCode }, 'MQTT reading not stored; waiting for the next reading.');
+        }
+      }
+    } finally { this.draining = false; }
+  }
+
   private client: MqttClient | null = null;
 
   constructor(
@@ -44,17 +63,15 @@ export class MqttSubscriber {
         safeResolve();
       });
 
-      this.client.on('message', async (topic, message) => {
-        try {
-          if (topic.endsWith('/telemetry')) {
-            // 1. Receive & parse data
-            const payload = parseMqttTelemetry(topic, message);
-            // 2. Invoke application use-case
-            await this.ingestionService.ingestReading(payload, 'MQTT');
-          }
-        } catch (err: any) {
-          logger.error(`Error processing MQTT message on ${topic}: ${err.message}`);
+      this.client.on('message', (topic, message) => {
+        if (!topic.endsWith('/telemetry')) return;
+        // Under load retain the latest reading per node, not an unbounded backlog.
+        if (!this.pending.has(topic) && this.pending.size >= 128) {
+          logger.warn('MQTT telemetry backlog full; reading dropped.');
+          return;
         }
+        this.pending.set(topic, message);
+        void this.drain();
       });
 
       this.client.on('error', (err) => {

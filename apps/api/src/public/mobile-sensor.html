@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>SAJAG — Mobile ESP32 Node</title>
+  <link rel="manifest" href="/phone-assets/phone.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<title>SAJAG — Mobile ESP32 Node</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;padding:12px;min-height:100vh}
@@ -86,6 +88,15 @@
     <button class="btn btn-blue" onclick="sendEnvironment()">Send environment reading</button>
     <button class="btn btn-slate" id="streamBtn" onclick="toggleStream()">Start stream (every 3 seconds)</button>
     <p style="color:#94a3b8;font-size:.75rem;margin-top:8px">Environmental values and location are simulated. Acceleration uses phone motion when enabled. Keep this page open while streaming.</p>
+  </div>
+  <div class="card">
+    <h2>LoRa send & receive</h2>
+    <p style="font-size:.8rem;color:#94a3b8">Send a test message. The gateway sends a reply over a second simulated radio transmission. Either direction can collide or be lost. Replies expire when the gateway restarts.</p>
+    <input id="radioText" maxlength="160" value="Hello from my USB phone" style="width:100%;padding:12px;margin-top:12px">
+    <button class="btn btn-amber" onclick="sendRadioMessage()">Send LoRa message</button>
+    <p id="radioInbox" style="margin-top:12px;white-space:pre-wrap">No received replies yet.</p>
+    <button class="btn btn-blue" id="installBtn" hidden onclick="installPhoneApp()">Install phone simulator</button>
+    <p style="font-size:.75rem;color:#94a3b8;margin-top:8px">Android: Chrome menu → Add to Home screen / Install app. Keep USB connected and the computer running. This is simulated LoRa, not a phone radio driver.</p>
   </div>
   <!-- Live accelerometer -->
   <div class="card">
@@ -311,6 +322,28 @@ async function refreshRadio() {
   } finally { setTimeout(refreshRadio, 4000); }
 }
 refreshRadio();
+let installPrompt;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; document.getElementById('installBtn').hidden = false; });
+async function installPhoneApp() { if (installPrompt) { await installPrompt.prompt(); installPrompt = undefined; document.getElementById('installBtn').hidden = true; } }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/phone-sw.js').catch(() => {});
+async function sendRadioMessage() {
+  try {
+    const r = await fetch('/api/sim/radio-messages', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({deviceId:'ESP32-MOBILE-USB-01',text:document.getElementById('radioText').value}), signal: AbortSignal.timeout(6000) });
+    if (!r.ok) throw new Error('Message rejected or gateway unavailable');
+    const d = await r.json();
+    log(`TX queued ${d.id.slice(0,8)} — waiting for radio reply`, 'info');
+  } catch(e) { log(e.message, 'err'); }
+}
+async function receiveRadioMessages() {
+  try {
+    const r = await fetch('/api/sim/radio-messages?deviceId=ESP32-MOBILE-USB-01', {signal:AbortSignal.timeout(6000)});
+    if (!r.ok) throw new Error('Radio inbox unavailable');
+    const d = await r.json();
+    document.getElementById('radioInbox').textContent = d.messages.length ? d.messages.slice(-10).reverse().map(m => `RX ${m.id.slice(0,8)}: ${m.text}`).join('\n') : 'No received replies yet.';
+  } catch { document.getElementById('radioInbox').textContent = 'Receive connection unavailable. Retrying…'; }
+  finally { setTimeout(receiveRadioMessages, 3000); }
+}
+receiveRadioMessages();
 // ─── Startup API check ────────────────────────────────────────────────────────
 (async () => {
   try {

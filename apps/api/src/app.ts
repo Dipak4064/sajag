@@ -47,6 +47,9 @@ app.get('/health', (_req, res) => {
   });
 });
 
+app.use('/phone-assets', express.static(path.join(__dirname, 'public')));
+app.get('/phone-sw.js', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'phone-sw.js')));
+
 // Mobile USB Phone Sensor Bridge GUI
 app.get('/sensor', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'mobile-sensor.html'));
