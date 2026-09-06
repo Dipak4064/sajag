@@ -52,6 +52,7 @@ export class AlertStateMachineService {
 
     logger.info(`Geofence identified ${affectedUsers.length} citizens in ${params.radiusMeters || 5000}m radius.`);
 
+    const delivery = { matchedCitizens: affectedUsers.length, queuedCalls: 0, failedCalls: 0, unconfiguredCalls: 0 };
     for (const user of affectedUsers) {
       const alert = await prisma.alert.create({
         data: {
@@ -62,20 +63,25 @@ export class AlertStateMachineService {
         }
       });
 
-      await twilioService.placeEmergencyCall(alert.id, user.phone, user.name);
+      const call = await twilioService.placeEmergencyCall(alert.id, user.phone, user.name);
+      if (call.status === 'queued') delivery.queuedCalls++;
+      else if (call.status === 'failed') delivery.failedCalls++;
+      else delivery.unconfiguredCalls++;
+      const status = call.status === 'queued' ? 'WAITING_RESPONSE' : 'NOTIFICATION_FAILED';
 
       await prisma.alert.update({
         where: { id: alert.id },
-        data: { status: 'WAITING_RESPONSE' }
+        data: { status }
       });
 
       this.ws.emit('alert:update', {
         alertId: alert.id,
-        status: 'WAITING_RESPONSE'
+        status
       });
     }
 
-    return disasterEvent;
+    logger.info({ eventId: disasterEvent.id, ...delivery }, 'Alert notification result');
+    return { ...disasterEvent, delivery };
   }
 
   public async handleUserResponse(params: {

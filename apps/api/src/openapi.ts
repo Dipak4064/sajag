@@ -26,6 +26,8 @@ export const openApiDocument = {
   ],
   paths: {
     '/health': { get: { tags: ['System'], summary: 'Health check', responses: { '200': { description: 'Healthy API' } } } },
+    '/sensor': { get: { tags: ['System'], summary: 'Production Telemetry & Dual-Transport Simulator UI', responses: { '200': { description: 'HTML Simulator Interface' } } } },
+    '/simulation': { get: { tags: ['System'], summary: 'Production Telemetry & Dual-Transport Simulator UI Alias', responses: { '200': { description: 'HTML Simulator Interface' } } } },
     '/api/transports/status': { get: { tags: ['Transport'], summary: 'Transport configuration and reachability', responses: { '200': { description: 'Transport status' } } } },
     '/api/transports/lora': {
       post: {
@@ -35,12 +37,16 @@ export const openApiDocument = {
         responses: { '200': { description: 'Packet ingested and risk evaluated' }, '400': { description: 'Invalid telemetry' }, '401': { description: 'Invalid gateway token' } }
       }
     },
-    '/api/devices': { get: { tags: ['Devices'], summary: 'List devices with latest reading', responses: { '200': { description: 'Device list' } } } },
-    '/api/devices/{id}': { get: { tags: ['Devices'], summary: 'Get a device and recent readings', parameters: [{ '$ref': '#/components/parameters/Id' }], responses: { '200': { description: 'Device' }, '404': { description: 'Not found' } } } },
-    '/api/devices/{id}/readings': { get: { tags: ['Devices'], summary: 'Get device readings', parameters: [{ '$ref': '#/components/parameters/Id' }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 500, default: 50 } }], responses: { '200': { description: 'Readings' } } } },
+    '/api/devices': { get: { tags: ['Devices'], summary: 'List devices with latest reading', parameters: [{ name: 'connectedOnly', in: 'query', schema: { type: 'boolean', default: false } }], responses: { '200': { description: 'Device list' } } } },
+    '/api/devices/{id}': { get: { tags: ['Devices'], summary: 'Get a device and recent readings by id or deviceId', parameters: [{ '$ref': '#/components/parameters/Id' }, { name: 'requireConnected', in: 'query', schema: { type: 'boolean', default: false } }], responses: { '200': { description: 'Device' }, '404': { description: 'Not found' } } } },
+    '/api/devices/{id}/telemetry': { get: { tags: ['Devices'], summary: 'Fetch telemetry for one currently connected device only', parameters: [{ '$ref': '#/components/parameters/Id' }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 500, default: 50 } }], responses: { '200': { description: 'Connected device and readings' }, '404': { description: 'Connected device not found' } } } },
+    '/api/devices/{id}/readings': { get: { tags: ['Devices'], summary: 'Get device readings by id or deviceId', parameters: [{ '$ref': '#/components/parameters/Id' }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 500, default: 50 } }, { name: 'requireConnected', in: 'query', schema: { type: 'boolean', default: false } }], responses: { '200': { description: 'Readings' } } } },
     '/api/sim/devices': { get: { tags: ['Simulation'], summary: 'List virtual ESP32 nodes', responses: { '200': { description: 'Simulator devices' } } } },
     '/api/sim/scenario': { post: { tags: ['Simulation'], summary: 'Trigger a disaster curve', requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/Scenario' } } } }, responses: { '200': { description: 'Scenario accepted' }, '400': { description: 'Invalid scenario' } } } },
     '/api/sim/network-mode': { post: { tags: ['Simulation'], summary: 'Switch MQTT or simulated LoRa', requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/NetworkMode' } } } }, responses: { '200': { description: 'Mode changed' }, '404': { description: 'Unknown device' } } } },
+    '/api/sim/lora-transmit': { post: { tags: ['Simulation'], summary: 'Proxy mobile telemetry via LoRa simulator', requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/TelemetryPayload' } } } }, responses: { '200': { description: 'LoRa packet queued' } } } },
+    '/api/sim/lora-health': { get: { tags: ['Simulation'], summary: 'Get SimPy LoRa radio gateway health', responses: { '200': { description: 'Radio status' } } } },
+    '/api/sim/radio-messages': { get: { tags: ['Simulation'], summary: 'Get simulated radio messages inbox', responses: { '200': { description: 'Inbox' } } }, post: { tags: ['Simulation'], summary: 'Transmit simulated radio text message', responses: { '202': { description: 'Transmitted' } } } },
     '/api/auth/register': { post: { tags: ['Auth'], summary: 'Register a user', requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/Register' } } } }, responses: { '201': { description: 'Registered' }, '400': { description: 'Invalid request' } } } },
     '/api/auth/login': { post: { tags: ['Auth'], summary: 'Create a JWT session', requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/Login' } } } }, responses: { '200': { description: 'Authenticated' }, '401': { description: 'Invalid credentials' } } } },
     '/api/alerts': { get: { tags: ['Alerts'], summary: 'List recent disaster events', responses: { '200': { description: 'Events' } } } },
@@ -56,9 +62,12 @@ export const openApiDocument = {
     '/api/shelters/nearest': { get: { tags: ['Shelters'], summary: 'Find nearest shelters', parameters: [{ '$ref': '#/components/parameters/Lat' }, { '$ref': '#/components/parameters/Lng' }], responses: { '200': { description: 'Shelters ordered by distance' } } } },
     '/api/reports': { get: { tags: ['Reports'], summary: 'List citizen reports', responses: { '200': { description: 'Reports' } } }, post: { tags: ['Reports'], summary: 'Submit a citizen report', requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/Report' } } } }, responses: { '201': { description: 'Report created' } } } },
     '/api/reports/{id}/verify': { patch: { tags: ['Reports'], summary: 'Verify or reject a report', parameters: [{ '$ref': '#/components/parameters/Id' }], responses: { '200': { description: 'Updated report' } } } },
-    '/api/users': { get: { tags: ['Users'], summary: 'List users and safety tally', responses: { '200': { description: 'Users' } } } },
+    '/api/users': { get: { tags: ['Users'], summary: 'List users and safety tally', responses: { '200': { description: 'Users' } } }, post: { tags: ['Users'], summary: 'Create a user for frontend/admin flows', requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/Register' } } } }, responses: { '201': { description: 'Created' }, '400': { description: 'Invalid request' } } } },
     '/api/rescue/teams': { get: { tags: ['Rescue'], summary: 'List rescue teams', responses: { '200': { description: 'Teams' } } } },
-    '/api/rescue/nearest': { get: { tags: ['Rescue'], summary: 'Find available rescue teams', parameters: [{ '$ref': '#/components/parameters/Lat' }, { '$ref': '#/components/parameters/Lng' }], responses: { '200': { description: 'Teams ordered by distance' } } } }
+    '/api/rescue/nearest': { get: { tags: ['Rescue'], summary: 'Find available rescue teams', parameters: [{ '$ref': '#/components/parameters/Lat' }, { '$ref': '#/components/parameters/Lng' }], responses: { '200': { description: 'Teams ordered by distance' } } } },
+    '/api/ads': { get: { tags: ['System'], summary: 'Get active announcements and ads', responses: { '200': { description: 'Active announcements' } } } },
+    '/api/ads/admin': { get: { tags: ['System'], summary: 'Get all announcements and CTR stats (admin)', responses: { '200': { description: 'All ads' } } } },
+    '/api/files/upload': { post: { tags: ['System'], summary: 'Upload file to RustFS object store', responses: { '200': { description: 'Uploaded' } } } }
   },
   components: {
     securitySchemes: {

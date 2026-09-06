@@ -11,6 +11,19 @@ export class AuthRepository {
     return prisma.municipality.findFirst();
   }
 
+  async findMunicipalityById(id: string) {
+    return prisma.municipality.findUnique({ where: { id } });
+  }
+
+  async createMunicipality(data: {
+    name: string;
+    nameNe?: string;
+  }) {
+    return prisma.municipality.create({
+      data
+    });
+  }
+
   async createUser(data: {
     name: string;
     email: string;
@@ -20,6 +33,7 @@ export class AuthRepository {
     latitude: number;
     longitude: number;
     municipalityId: string;
+    status?: string;
   }) {
     return prisma.user.create({
       data

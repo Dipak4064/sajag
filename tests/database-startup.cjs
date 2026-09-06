@@ -5,6 +5,7 @@ const calls = [];
 const migrations = [];
 const migrationCommands = [];
 let migrationResults = [];
+let migrationTableExists = true;
 require('node:child_process').spawnSync = (_command, _args, options) => {
   migrations.push({ ...options.env });
   migrationCommands.push(_args);
@@ -13,10 +14,14 @@ require('node:child_process').spawnSync = (_command, _args, options) => {
 let unavailable = new Set();
 require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: class {
   constructor(options) { this.url = options.datasources.db.url; }
-  async $queryRaw() {
+  async $queryRaw(strings) {
     const host = new URL(this.url).hostname;
     calls.push(host);
     if (unavailable.has(host)) throw Object.assign(new Error('offline'), { code: 'P1001' });
+    const sql = Array.isArray(strings) ? strings.join('') : '';
+    if (sql.includes('information_schema.tables')) return [{ count: 1n }];
+    if (sql.includes('to_regclass')) return [{ exists: migrationTableExists ? '_prisma_migrations' : null }];
+    return [{ '?column?': 1 }];
   }
   async $disconnect() {}
 } } };
@@ -77,10 +82,15 @@ test('legacy local database is synchronized without accepting data loss', async 
   process.env.LOCAL_DATABASE_URL = local;
   process.env.DB_MIGRATE_ON_START = 'true';
   migrations.length = 0;
-  migrationResults = [{ status: 1, stderr: 'Error: P3005 schema is not empty' }];
+  migrationCommands.length = 0;
+  migrationTableExists = false;
+  migrationResults = [{ status: 0, stdout: '' }, { status: 0, stdout: '' }];
   await prepareDatabase();
   assert.equal(migrations.length, 2);
   assert.equal(new URL(process.env.DATABASE_URL).hostname, 'localhost');
-  assert.ok(migrationCommands.at(-1).includes('--skip-generate'));
-  assert.ok(!migrationCommands.at(-1).includes('--accept-data-loss'));
+  assert.ok(migrationCommands[0].includes('--skip-generate'));
+  assert.ok(!migrationCommands[0].includes('--accept-data-loss'));
+  assert.ok(migrationCommands[1].includes('resolve'));
+  assert.ok(migrationCommands[1].includes('--applied'));
+  migrationTableExists = true;
 });

@@ -1,6 +1,7 @@
+import { logger } from '../../shared/logging/logger';
 import { telemetryPayloadSchema } from '#sajag-validation';
 import { IngestionGate } from '../../shared/database/ingestion-gate';
-import { prisma, recoverDatabase } from '../../shared/database/prisma';
+import { prisma, recoverDatabase, databaseTarget } from '../../shared/database/prisma';
 import { WebSocketService } from '../../shared/websocket/socket.server';
 import { riskEngine } from './risk.service';
 import { alertStateMachine } from '../alerts/alert.service';
@@ -13,7 +14,7 @@ export class SensorIngestionService {
   private municipalityClient = prisma;
   private municipalityExpires = 0;
   private ws = WebSocketService.getInstance();
-  private lastAlertTriggeredAt: number = 0;
+  private lastAlerts = new Map<string, number>();
   private alertDebounceMs = 30000;
 
   public async ingestReading(payload: TelemetryPayload, transport: TransportType) {
@@ -25,7 +26,7 @@ export class SensorIngestionService {
 
   private async persistReading(payload: TelemetryPayload, transport: TransportType) {
     const db = prisma;
-    const { deviceId, sensors, timestamp, location } = telemetryPayloadSchema.parse(payload);
+    const { deviceId, sensors, timestamp, location, radiusMeters = 5000 } = telemetryPayloadSchema.parse(payload);
 
     if (this.municipalityClient !== db || Date.now() > this.municipalityExpires) {
       this.municipalityLookup = undefined;
@@ -72,6 +73,7 @@ export class SensorIngestionService {
       }
     });
 
+    logger.info({ deviceId, readingId: reading.id, transport, database: databaseTarget() }, 'Telemetry stored');
     this.ws.emit('reading:new', reading);
     this.ws.emit('device:status', {
       deviceId,
@@ -82,22 +84,32 @@ export class SensorIngestionService {
     const evaluation = riskEngine.evaluate(sensors);
 
     const now = Date.now();
-    if (evaluation.isAlertTriggerRequired && now - this.lastAlertTriggeredAt > this.alertDebounceMs) {
-      this.lastAlertTriggeredAt = now;
-      await alertStateMachine.triggerDisasterAlert({
+    const key = `${deviceId}:${evaluation.primaryDisasterType}`;
+    for (const [k, time] of this.lastAlerts) if (now - time > this.alertDebounceMs) this.lastAlerts.delete(k);
+    let alertResult: any = { status: evaluation.isAlertTriggerRequired ? 'cooldown' : 'below_threshold' };
+    if (evaluation.isAlertTriggerRequired && !this.lastAlerts.has(key)) {
+      this.lastAlerts.set(key, now);
+      try {
+      const event = await alertStateMachine.triggerDisasterAlert({
         isSimulation: config.isSimulationMode,
         type: evaluation.primaryDisasterType,
         riskScore: evaluation.breakdown.overallScore,
         severity: evaluation.breakdown.severity,
         latitude: location.lat,
         longitude: location.lng,
-        radiusMeters: 5000,
+        radiusMeters,
         title: `${evaluation.breakdown.severity} ${evaluation.primaryDisasterType} Warning`,
         description: `Dangerous sensor levels detected at ${device.name}: Water=${sensors.waterLevel}cm, Rain=${sensors.rainfall}mm/hr, Accel=${sensors.acceleration}g`
       });
+      alertResult = { status: 'created', eventId: event.id, ...event.delivery };
+      } catch (error: any) {
+        this.lastAlerts.delete(key);
+        logger.error({ deviceId, readingId: reading.id, code: error.code }, 'Reading stored but alert workflow failed');
+        alertResult = { status: 'failed', message: 'Alert workflow failed; inspect backend logs.' };
+      }
     }
 
-    return { reading, evaluation };
+    return { reading, evaluation, alert: alertResult, database: databaseTarget() };
   }
 }
 

@@ -1,7 +1,11 @@
 import { usersRepository, UsersRepository } from './users.repository';
+import { authService, AuthService } from '../auth/auth.service';
 
 export class UsersService {
-  constructor(private repo: UsersRepository = usersRepository) {}
+  constructor(
+    private repo: UsersRepository = usersRepository,
+    private auth: AuthService = authService
+  ) {}
 
   async getUserRosterAndTally() {
     const users = await this.repo.findAllUsersRoster();
@@ -13,6 +17,10 @@ export class UsersService {
       total: users.length
     };
     return { users, tally };
+  }
+
+  async createUser(data: Parameters<AuthService['register']>[0]) {
+    return this.auth.register(data);
   }
 }
 

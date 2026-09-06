@@ -36,69 +36,6 @@ async function main() {
             status: 'ONLINE',
             transport: 'MQTT',
             municipalityId: municipality.id
-        },
-        {
-            deviceId: 'ESP32-KTM-002',
-            name: 'Bishnumati River - Shova Bhagwati Station',
-            latitude: 27.7153,
-            longitude: 85.3015,
-            status: 'ONLINE',
-            transport: 'MQTT',
-            municipalityId: municipality.id
-        },
-        {
-            deviceId: 'ESP32-KTM-003',
-            name: 'Shivapuri Hillside - Sundarijal Catchment',
-            latitude: 27.7942,
-            longitude: 85.3850,
-            status: 'ONLINE',
-            transport: 'MQTT',
-            municipalityId: municipality.id
-        },
-        {
-            deviceId: 'ESP32-KTM-004',
-            name: 'Patan Historical Core - Lalitpur',
-            latitude: 27.6726,
-            longitude: 85.3255,
-            status: 'ONLINE',
-            transport: 'MQTT',
-            municipalityId: municipality.id
-        },
-        {
-            deviceId: 'ESP32-KTM-005',
-            name: 'Hanumante River - Bhaktapur Lowlands',
-            latitude: 27.6710,
-            longitude: 85.4298,
-            status: 'ONLINE',
-            transport: 'MQTT',
-            municipalityId: municipality.id
-        },
-        {
-            deviceId: 'ESP32-KTM-006',
-            name: 'Chandragiri Escarpment - South-West Ridge',
-            latitude: 27.6698,
-            longitude: 85.2085,
-            status: 'ONLINE',
-            transport: 'MQTT',
-            municipalityId: municipality.id
-        },
-        {
-            deviceId: 'ESP32-KTM-007',
-            name: 'Kalanki Highway Transit Junction',
-            latitude: 27.6934,
-            longitude: 85.2816,
-            status: 'ONLINE',
-            transport: 'MQTT',
-            municipalityId: municipality.id
-        },
-        {
-            deviceId: 'ESP32-KTM-008',
-            name: 'Kirtipur Historic Ridge Station',
-            latitude: 27.6798,
-            longitude: 85.2755,
-            status: 'ONLINE',
-            transport: 'MQTT',
-            municipalityId: municipality.id
         }
     ];
     for (const d of devicesData) {
