@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: sajag_simulation
     volumes:
       - sajag_db:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U sajag -d sajag_simulation"]
       interval: 3s
@@ -35,7 +37,10 @@ services:
     env_file:
       - .env
     environment:
+      DB_PRIMARY: local
       DB_MIGRATE_ON_START: "true"
+      DATABASE_URL: postgresql://sajag:simulation@postgres:5432/sajag_simulation
+      DIRECT_URL: postgresql://sajag:simulation@postgres:5432/sajag_simulation
       LOCAL_DATABASE_URL: postgresql://sajag:simulation@postgres:5432/sajag_simulation
       MQTT_URL: mqtt://mosquitto:1883
       SIMULATOR_URL: http://device-sim:4001

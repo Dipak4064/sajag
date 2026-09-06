@@ -9,7 +9,13 @@ export class ScenarioManager {
 
   constructor(private generator: TelemetryGenerator) {}
 
-  public triggerScenario(scenario: ScenarioMode, targetDeviceId: string = 'ESP32-KTM-001', durationSeconds: number = 30) {
+  public triggerScenario(
+    scenario: ScenarioMode,
+    targetDeviceId: string = 'ESP32-KTM-001',
+    durationSeconds: number = 30,
+    onStep?: () => unknown | Promise<unknown>,
+    intervalMs: number = 15000
+  ) {
     if (this.activeScenarioTimer) {
       clearInterval(this.activeScenarioTimer);
       this.activeScenarioTimer = null;
@@ -22,12 +28,20 @@ export class ScenarioManager {
     if (scenario === 'NORMAL') {
       this.generator.clearAllOverrides();
       logger.info('Reset all devices to normal baseline physics.');
+      void onStep?.();
       return;
     }
 
     let elapsed = 0;
-    const intervalMs = 1000;
-    const totalSteps = durationSeconds;
+    const stepMs = Math.max(5000, intervalMs);
+    const totalSteps = Math.max(1, Math.ceil((durationSeconds * 1000) / stepMs));
+
+    const publishStep = () => {
+      void Promise.resolve(onStep?.()).catch((error) => {
+        logger.warn(`Triggered telemetry publish failed: ${error.message}`);
+      });
+    };
+    publishStep();
 
     this.activeScenarioTimer = setInterval(() => {
       elapsed++;
@@ -58,6 +72,7 @@ export class ScenarioManager {
           this.activeScenarioTimer = null;
         }
       }
-    }, intervalMs);
+      publishStep();
+    }, stepMs);
   }
 }

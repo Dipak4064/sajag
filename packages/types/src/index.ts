@@ -87,6 +87,7 @@ export interface SensorValues {
 }
 
 export interface TelemetryPayload {
+  radiusMeters?: number;
   deviceId: string;
   timestamp: string;
   location: GeoLocation;

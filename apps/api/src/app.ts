@@ -47,13 +47,23 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.use('/phone-assets', express.static(path.join(__dirname, 'public')));
-app.get('/phone-sw.js', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'phone-sw.js')));
+import fs from 'fs';
 
-// Mobile USB Phone Sensor Bridge GUI
-app.get('/sensor', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'mobile-sensor.html'));
-});
+const publicDir = fs.existsSync(path.join(__dirname, 'public'))
+  ? path.join(__dirname, 'public')
+  : fs.existsSync(path.join(__dirname, '../src/public'))
+    ? path.join(__dirname, '../src/public')
+    : path.resolve(process.cwd(), 'apps/api/src/public');
+
+app.use('/phone-assets', express.static(publicDir));
+app.get('/phone-sw.js', (_req, res) => res.sendFile(path.join(publicDir, 'phone-sw.js')));
+
+// Telemetry & Dual-Transport Simulator UI
+const renderSimulatorUI = (_req: express.Request, res: express.Response) => {
+  res.sendFile(path.join(publicDir, 'mobile-sensor.html'));
+};
+app.get('/sensor', renderSimulatorUI);
+app.get('/simulation', renderSimulatorUI);
 
 // OpenAPI Documentation
 app.get('/openapi.json', (_req, res) => res.json(openApiDocument));

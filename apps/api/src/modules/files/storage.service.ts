@@ -16,8 +16,10 @@ export class StorageService {
   private s3: S3Client;
   private bucket: string;
   private endpoint: string;
+  private enabled: boolean;
 
   constructor() {
+    this.enabled = process.env.RUSTFS_ENABLED === 'true';
     this.endpoint = process.env.RUSTFS_ENDPOINT || 'http://localhost:9000';
     this.bucket = process.env.RUSTFS_BUCKET || 'sajag-files';
     const accessKeyId = process.env.RUSTFS_ACCESS_KEY || 'rustfsadmin';
@@ -34,7 +36,13 @@ export class StorageService {
       forcePathStyle: true
     });
 
-    this.initBucket();
+    if (this.enabled) void this.initBucket();
+  }
+
+  private requireEnabled() {
+    if (!this.enabled) {
+      throw Object.assign(new Error('Object storage is disabled in this environment'), { statusCode: 503 });
+    }
   }
 
   private async initBucket() {
@@ -59,6 +67,7 @@ export class StorageService {
     file: Express.Multer.File,
     folder: string = 'general'
   ): Promise<{ key: string; url: string; originalName: string; size: number; mimeType: string }> {
+    this.requireEnabled();
     const ext = path.extname(file.originalname) || '';
     const uniqueId = crypto.randomBytes(8).toString('hex');
     const safeName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -91,6 +100,7 @@ export class StorageService {
     key: string,
     mimeType: string = 'application/octet-stream'
   ): Promise<{ key: string; url: string }> {
+    this.requireEnabled();
     await this.s3.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -108,6 +118,7 @@ export class StorageService {
   }
 
   public async getFileStream(key: string) {
+    this.requireEnabled();
     const response = await this.s3.send(
       new GetObjectCommand({
         Bucket: this.bucket,
@@ -118,6 +129,7 @@ export class StorageService {
   }
 
   public async getPresignedDownloadUrl(key: string, expiresInSeconds: number = 3600): Promise<string> {
+    this.requireEnabled();
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key
@@ -126,6 +138,7 @@ export class StorageService {
   }
 
   public async deleteFile(key: string): Promise<void> {
+    this.requireEnabled();
     await this.s3.send(
       new DeleteObjectCommand({
         Bucket: this.bucket,
@@ -136,6 +149,7 @@ export class StorageService {
   }
 
   public async listFiles(prefix?: string) {
+    this.requireEnabled();
     const response = await this.s3.send(
       new ListObjectsV2Command({
         Bucket: this.bucket,

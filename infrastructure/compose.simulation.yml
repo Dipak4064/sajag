@@ -31,17 +31,19 @@ services:
     build:
       context: ..
       dockerfile: infrastructure/docker/api.Dockerfile
-    # All secrets come from .env (including DATABASE_URL → NeonDB)
     env_file: ../.env
     environment:
+      DB_PRIMARY: local
+      DATABASE_URL: postgresql://sajag:simulation@postgres:5432/sajag_simulation
+      DIRECT_URL: postgresql://sajag:simulation@postgres:5432/sajag_simulation
       LOCAL_DATABASE_URL: postgresql://sajag:simulation@postgres:5432/sajag_simulation
       DB_MIGRATE_ON_START: 'true'
-      # These override .env values with Docker-internal service names
       MQTT_URL: mqtt://mosquitto:1883
       SIMULATOR_URL: http://device-sim:4001
       LORA_SIM_URL: http://lora-sim:4002
       SIMULATION_MODE: 'true'
       LORA_GATEWAY_TOKEN: local-simulation-gateway
+      RUSTFS_ENABLED: 'false'
     ports:
       - '${API_PORT:-4000}:4000'
     depends_on:
@@ -51,7 +53,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: [CMD, node, -e, "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 3s
+      interval: 15s
       timeout: 5s
       retries: 30
       start_period: 20s
@@ -73,7 +75,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://localhost:4002/health')"]
-      interval: 3s
+      interval: 15s
       timeout: 3s
       retries: 20
 
@@ -85,6 +87,7 @@ services:
     environment:
       MQTT_URL: mqtt://mosquitto:1883
       LORA_SIM_URL: http://lora-sim:4002
+      TELEMETRY_TRIGGER_INTERVAL_MS: '15000'
     ports:
       - '${SIMULATOR_PORT:-4001}:4001'
     command: [node, apps/device-sim/dist/index.js]
@@ -93,7 +96,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: [CMD, node, -e, "fetch('http://localhost:4001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 3s
+      interval: 15s
       timeout: 3s
       retries: 20
 

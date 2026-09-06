@@ -15,15 +15,23 @@ export class AuthService {
     role: any;
     latitude: number;
     longitude: number;
+    municipalityId?: string;
+    status?: string;
   }) {
     const existingUser = await this.repo.findUserByEmail(data.email);
     if (existingUser) {
       throw AppError.badRequest('User with this email already exists');
     }
 
-    const defaultMuni = await this.repo.findDefaultMunicipality();
+    let defaultMuni = data.municipalityId
+      ? await this.repo.findMunicipalityById(data.municipalityId)
+      : await this.repo.findDefaultMunicipality();
     if (!defaultMuni) {
-      throw new AppError('No municipality configured', 500);
+      if (data.municipalityId) throw AppError.badRequest('Municipality not found');
+      defaultMuni = await this.repo.createMunicipality({
+        name: 'Default Municipality',
+        nameNe: 'Default Municipality'
+      });
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
@@ -35,7 +43,8 @@ export class AuthService {
       role: data.role,
       latitude: data.latitude,
       longitude: data.longitude,
-      municipalityId: defaultMuni.id
+      municipalityId: defaultMuni.id,
+      status: data.status
     });
 
     const token = jwt.sign(

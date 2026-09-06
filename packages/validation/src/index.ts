@@ -18,6 +18,7 @@ export const sensorValuesSchema = z.object({
 
 // Telemetry from MQTT / the local LoRa gateway
 export const telemetryPayloadSchema = z.object({
+  radiusMeters: z.number().positive().max(100000).optional(),
   deviceId: z.string().min(1),
   timestamp: z.string().datetime({ offset: true }).default(() => new Date().toISOString()),
   location: geoLocationSchema,
@@ -28,6 +29,11 @@ export const telemetryPayloadSchema = z.object({
 export const heartbeatPayloadSchema = z.object({
   deviceId: z.string().min(1),
   timestamp: z.string().optional()
+});
+
+export const deviceTelemetryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).default(50),
+  requireConnected: z.coerce.boolean().default(false)
 });
 
 // Twilio DTMF Response
@@ -91,4 +97,9 @@ export const authRegisterSchema = z.object({
   role: z.enum(['CITIZEN', 'RESPONDER', 'RESCUE_TEAM', 'AUTHORITY', 'ADMIN']).default('CITIZEN'),
   latitude: z.number().default(27.7172),
   longitude: z.number().default(85.3240)
+});
+
+export const userCreateSchema = authRegisterSchema.extend({
+  municipalityId: z.string().min(1).optional(),
+  status: z.enum(['SAFE', 'UNSAFE', 'NO_RESPONSE', 'UNKNOWN']).default('UNKNOWN')
 });

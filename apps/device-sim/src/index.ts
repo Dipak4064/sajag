@@ -18,15 +18,29 @@ app.use(express.json());
 
 const port = Number(process.env.PORT || 4001);
 const mqttUrl = process.env.MQTT_URL || 'mqtt://localhost:1883';
+const triggerIntervalMs = Math.max(5000, Number(process.env.TELEMETRY_TRIGGER_INTERVAL_MS || 15000));
 
-// Device states
+// Device states - only the explicitly connected device will generate data
 const deviceStates: Map<string, VirtualDeviceConfig> = new Map();
 KATHMANDU_VIRTUAL_DEVICES.forEach((d) => deviceStates.set(d.deviceId, { ...d }));
 
-const generator = new TelemetryGenerator();
-const scenarioManager = new ScenarioManager(generator);
 const mqttClient = new DeviceMqttClient(mqttUrl);
 const loraClient = new DeviceLoRaClient(process.env.LORA_SIM_URL || 'http://localhost:4002');
+const generator = new TelemetryGenerator();
+const scenarioManager = new ScenarioManager(generator);
+
+async function publishDeviceReading(deviceId: string) {
+  const device = deviceStates.get(deviceId);
+  if (!device || !device.isActive) {
+    throw new Error(`Unknown or inactive device: ${deviceId}`);
+  }
+
+  const payload = generator.generateReading(device);
+  if (device.transport === 'LORA_SIM') {
+    return loraClient.publishTelemetry(payload);
+  }
+  return mqttClient.publishTelemetry(payload);
+}
 
 // Control API
 app.get('/health', (req, res) => {
@@ -35,6 +49,15 @@ app.get('/health', (req, res) => {
 
 app.get('/devices', (req, res) => {
   res.json(Array.from(deviceStates.values()));
+});
+
+app.post('/devices/:deviceId/telemetry', async (req, res) => {
+  try {
+    const ok = await publishDeviceReading(req.params.deviceId);
+    res.status(ok ? 202 : 503).json({ success: ok });
+  } catch (error: any) {
+    res.status(404).json({ success: false, error: error.message });
+  }
 });
 
 // Trigger scripted disaster curve
@@ -46,11 +69,18 @@ app.post('/simulate/scenario', (req, res) => {
 
   const { scenario, targetDeviceId, durationSeconds } = parseResult.data;
   if (targetDeviceId && !deviceStates.has(targetDeviceId)) return res.status(404).json({ error: 'Unknown device' });
-  scenarioManager.triggerScenario(scenario, targetDeviceId || 'ESP32-KTM-001', durationSeconds || 30);
+  scenarioManager.triggerScenario(
+    scenario,
+    targetDeviceId || 'ESP32-KTM-001',
+    durationSeconds || 30,
+    () => publishDeviceReading(targetDeviceId || 'ESP32-KTM-001'),
+    triggerIntervalMs
+  );
 
   res.json({
     success: true,
-    message: `Triggered scenario ${scenario} on ${targetDeviceId || 'ESP32-KTM-001'} for ${durationSeconds}s`
+    message: `Triggered scenario ${scenario} on ${targetDeviceId || 'ESP32-KTM-001'} for ${durationSeconds}s`,
+    intervalMs: triggerIntervalMs
   });
 });
 
@@ -81,33 +111,13 @@ app.post('/simulate/network-mode', (req, res) => {
   res.json({ success: true, mode, deviceId });
 });
 
-// Start background 3-second telemetry publishing loop
-function startSimulationLoop() {
-  const tick = async () => {
-    for (const device of deviceStates.values()) {
-      if (!device.isActive) continue;
-
-      const reading = generator.generateReading(device);
-
-      if (device.transport === 'MQTT') {
-        mqttClient.publishTelemetry(reading);
-        mqttClient.publishHeartbeat(device.deviceId);
-      } else {
-        await loraClient.publishTelemetry(reading);
-      }
-    }
-    setTimeout(tick, 3000);
-  };
-  void tick();
-}
-
 async function start() {
   await mqttClient.connect();
 
   app.listen(port, () => {
     logger.info(`Device Simulator HTTP Control API running on http://localhost:${port}`);
     logger.info(`Simulating ${deviceStates.size} Kathmandu Valley ESP32 Stations.`);
-    startSimulationLoop();
+    logger.info(`Telemetry publishing disabled until triggered. Scenario interval: ${triggerIntervalMs}ms.`);
   });
 }
 
