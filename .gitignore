@@ -11,3 +11,5 @@ npm-debug.log*
 coverage/
 prisma/*.db
 .neon
+infrastructure/rustfs/
+*.zip

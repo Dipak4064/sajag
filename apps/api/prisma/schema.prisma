@@ -168,3 +168,22 @@ model CitizenReport {
   status       String   @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | VERIFIED | REJECTED | RESOLVED
   createdAt    DateTime @default(now())
 }
+
+model Advertisement {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String    // Image asset stored in RustFS
+  targetUrl   String?   // Optional URL when user clicks the banner
+  category    String    @default("PSA") // PSA | EMERGENCY_NOTICE | SPONSOR | AWARENESS
+  placement   String    @default("CITIZEN_BANNER") // CITIZEN_BANNER | DASHBOARD_TOP | POPUP_ALERT
+  priority    Int       @default(1)
+  isActive    Boolean   @default(true)
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
