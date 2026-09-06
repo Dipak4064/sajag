@@ -16,7 +16,7 @@ export const sensorValuesSchema = z.object({
   rainfall: z.number().min(0)
 });
 
-// Telemetry from MQTT / Firebase
+// Telemetry from MQTT / the local LoRa gateway
 export const telemetryPayloadSchema = z.object({
   deviceId: z.string().min(1),
   timestamp: z.string().datetime({ offset: true }).default(() => new Date().toISOString()),

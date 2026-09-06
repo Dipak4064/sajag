@@ -1,4 +1,4 @@
-import { SensorValues, TelemetryPayload } from '@sajag/types';
+import { SensorValues, TelemetryPayload } from '#sajag-types';
 import { VirtualDeviceConfig } from './devices';
 
 export interface ScenarioOverride {

@@ -1,4 +1,4 @@
-import { GeoLocation, TransportType } from '@sajag/types';
+import { GeoLocation, TransportType } from '#sajag-types';
 
 export interface VirtualDeviceConfig {
   deviceId: string;

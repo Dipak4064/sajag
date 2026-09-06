@@ -1,99 +1,17 @@
-import express from 'express';
-import http from 'http';
-import cors from 'cors';
-import helmet from 'helmet';
-import dotenv from 'dotenv';
-import { logger } from './utils/logger';
-import { WebSocketService } from './websocket/socket.server';
-import { MqttSubscriber } from './transports/mqtt.subscriber';
-import { FirebaseLoRaListener } from './transports/firebase.listener';
-import { transportsRouter } from './routes/transports.routes';
-import swaggerUi from 'swagger-ui-express';
-import { openApiDocument } from './openapi';
-import { errorHandler } from './middleware/error.middleware';
+import { prepareDatabase } from './shared/database/startup';
+import { config } from './config/env.config';
+import { logger } from './shared/logging/logger';
 
-// Routes
-import { authRouter } from './routes/auth.routes';
-import { devicesRouter } from './routes/devices.routes';
-import { alertsRouter } from './routes/alerts.routes';
-import { sosRouter } from './routes/sos.routes';
-import { rescueRouter } from './routes/rescue.routes';
-import { sheltersRouter } from './routes/shelters.routes';
-import { reportsRouter } from './routes/reports.routes';
-import { usersRouter } from './routes/users.routes';
-import { simRouter } from './routes/sim.routes';
-import { filesRouter } from './routes/files.routes';
-import { adsRouter } from './routes/ads.routes';
-
-dotenv.config();
-
-const app = express();
-const server = http.createServer(app);
-
-const port = Number(process.env.PORT || 4000);
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
-  : ['http://localhost:3000', 'http://localhost:3001'];
-
-// Security & Parsing
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Initialize Real-time WebSocket
-const wsService = WebSocketService.getInstance();
-wsService.init(server, allowedOrigins);
-
-// Health Check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    service: 'sajag-api'
-  });
-});
-
-// OpenAPI is intentionally available without authentication so operators can
-// inspect the transport contracts before connecting a device or panel.
-app.get('/openapi.json', (_req, res) => res.json(openApiDocument));
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, { explorer: true }));
-
-// Mount Routes
-app.use('/api/auth', authRouter);
-app.use('/api/devices', devicesRouter);
-app.use('/api/alerts', alertsRouter);
-app.use('/api/sos', sosRouter);
-app.use('/api/rescue', rescueRouter);
-app.use('/api/shelters', sheltersRouter);
-app.use('/api/reports', reportsRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/transports', transportsRouter);
-app.use('/api/sim', simRouter);
-app.use('/api/files', filesRouter);
-app.use('/api/ads', adsRouter);
-
-// Global Error Handler
-app.use(errorHandler);
-
-// Start Background Ingestion Transports
-const mqttUrl = process.env.MQTT_URL || 'mqtt://localhost:1883';
-const mqttSubscriber = new MqttSubscriber(mqttUrl);
-
-const firebaseListener = new FirebaseLoRaListener(
-  process.env.FIREBASE_PROJECT_ID,
-  process.env.FIREBASE_DB_URL,
-  process.env.FIREBASE_CLIENT_EMAIL,
-  process.env.FIREBASE_PRIVATE_KEY
-);
+const port = config.port;
 
 async function start() {
   try {
+    await prepareDatabase();
+    const { server } = await import('./app.js');
+    const { MqttSubscriber } = await import('./infrastructure/mqtt/mqtt.subscriber.js');
+    const mqttSubscriber = new MqttSubscriber(config.mqttUrl);
     // Start MQTT subscriber
     await mqttSubscriber.connect();
-
-    // Start Firebase listener (standby or live)
-    firebaseListener.start();
 
     // Start HTTP & Socket server
     server.listen(port, () => {

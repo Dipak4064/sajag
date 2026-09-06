@@ -1,6 +1,9 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // directUrl is required for prisma migrate — Neon's pooler doesn't support
+  // the advisory locks that migrations use; the direct (non-pooled) URL bypasses it.
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {

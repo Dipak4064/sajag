@@ -1,5 +1,2 @@
-import { PrismaClient } from '@prisma/client';
+export { prisma } from '../shared/database/prisma';
 
-export const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error']
-});

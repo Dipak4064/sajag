@@ -1,0 +1,17 @@
+import { telemetryPayloadSchema } from '#sajag-validation';
+import { TelemetryPayload } from '#sajag-types';
+
+export function parseTelemetryPayload(value: unknown): TelemetryPayload {
+  return telemetryPayloadSchema.parse(value);
+}
+
+export function parseMqttTelemetry(topic: string, body: Buffer | string): TelemetryPayload {
+  const parts = topic.split('/');
+  if (parts.length !== 4 || parts[0] !== 'prakop' || parts[1] !== 'device' || parts[3] !== 'telemetry') {
+    throw new Error(`Unsupported telemetry topic: ${topic}`);
+  }
+
+  const payload = parseTelemetryPayload(JSON.parse(body.toString()));
+  if (payload.deviceId !== parts[2]) throw new Error('Topic and payload device IDs differ');
+  return payload;
+}

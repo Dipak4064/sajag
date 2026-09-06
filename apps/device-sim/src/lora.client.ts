@@ -1,4 +1,4 @@
-import { TelemetryPayload } from '@sajag/types';
+import { TelemetryPayload } from '#sajag-types';
 import pino from 'pino';
 
 const logger = pino({ name: 'DeviceSim:LoRa' });

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { UserRole } from '@sajag/types';
+import { UserRole } from '#sajag-types';
+import { config } from '../config/env.config';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -18,7 +19,7 @@ export function authenticateJwt(req: AuthenticatedRequest, res: Response, next: 
   }
 
   const token = authHeader.split(' ')[1];
-  const secret = process.env.JWT_SECRET || 'sajag_jwt_secret_dev_2026';
+  const secret = config.jwtSecret;
 
   try {
     const decoded = jwt.verify(token, secret) as any;

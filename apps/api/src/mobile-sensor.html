@@ -1,0 +1,122 @@
+<!DOCTYPE html>                                                                                     
+    <html lang="en">                                                                                    
+    <head>                                                                                              
+      <meta charset="UTF-8">                                                                            
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">                            
+      <title>SAJAG - Mobile ESP32 Motion & LoRa Simulator</title>                                       
+      <style>                                                                                           
+        body { font-family: system-ui, sans-serif; background: #0f172a; color: #fff; text-align: center;
+  padding: 20px; }                                                                                      
+        .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 15px; border:   
+  1px solid #334155; }                                                                                  
+        .btn { background: #e11d48; color: #fff; border: none; padding: 14px 24px; font-size: 16px;     
+  border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }              
+        .btn-toggle { background: #2563eb; }                                                            
+        .val { font-size: 24px; font-weight: bold; color: #38bdf8; }                                    
+        .alert { color: #f43f5e; font-weight: bold; }                                                   
+      </style>                                                                                          
+    </head>                                                                                             
+    <body>                                                                                              
+      <h2>🚨 Mobile ESP32 Node</h2>                                                                     
+      <p>Device ID: <strong id="devId">ESP32-MOBILE-01</strong></p>                                     
+                                                                                                        
+      <div class="card">                                                                                
+        <h3>Network Mode</h3>                                                                           
+        <button class="btn btn-toggle" id="modeBtn" onclick="toggleNetworkMode()">Current Mode: WiFi    
+  (MQTT/HTTP)</button>                                                                                  
+      </div>                                                                                            
+                                                                                                        
+      <div class="card">                                                                                
+        <h3>Live Motion (Accelerometer)</h3>                                                            
+        <p>g-Force Shock: <span class="val" id="gForce">0.15 g</span></p>                               
+        <p id="status">Baseline normal</p>                                                              
+      </div>                                                                                            
+                                                                                                        
+      <div class="card">                                                                                
+        <h3>Manual Emergency Trigger</h3>                                                               
+        <button class="btn" onclick="triggerEarthquakeQuake()">Simulate Severe Earthquake (1.           
+  8g)</button>                                                                                          
+      </div>                                                                                            
+                                                                                                        
+      <script>                                                                                          
+        let isLoraMode = false;                                                                         
+        let serverUrl = window.location.origin; // Uses your computer's IP / Ngrok URL                  
+        let lastSend = 0;                                                                               
+                                                                                                        
+        function toggleNetworkMode() {                                                                  
+          isLoraMode = !isLoraMode;                                                                     
+          document.getElementById('modeBtn').innerText = isLoraMode ? "Current Mode: LoRa Fallback      
+  (Blackout)" : "Current Mode: WiFi (MQTT/HTTP)";                                                       
+          document.getElementById('modeBtn').style.background = isLoraMode ? "#d97706" : "#2563eb";     
+        }                                                                                               
+                                                                                                        
+        async function sendTelemetry(accelG) {                                                          
+          const now = Date.now();                                                                       
+          if (now - lastSend < 2000) return; // Throttle to 2 seconds                                   
+          lastSend = now;                                                                               
+                                                                                                        
+          const payload = {                                                                             
+            deviceId: "ESP32-MOBILE-01",                                                                
+            timestamp: new Date().toISOString(),                                                        
+            location: { lat: 27.7172, lng: 85.3240 },                                                   
+            sensors: {                                                                                  
+              acceleration: accelG,                                                                     
+              waterLevel: 25,                                                                           
+              soilMoisture: 35,                                                                         
+              rainfall: 5                                                                               
+            }                                                                                           
+          };                                                                                            
+                                                                                                        
+          try {                                                                                         
+            if (!isLoraMode) {                                                                          
+              // Normal WiFi / HTTP Ingestion                                                           
+              await fetch(`${serverUrl}/api/transports/lora`, {                                         
+                method: 'POST',                                                                         
+                headers: { 'Content-Type': 'application/json', 'x-gateway-token': 'local-simulation-    
+  gateway' },                                                                                           
+                body: JSON.stringify(payload)                                                           
+              });                                                                                       
+            } else {                                                                                    
+              // LoRa Radio Fallback Transmission Envelope                                              
+              await fetch(`http://${window.location.hostname}:4002/transmit`, {                         
+                method: 'POST',                                                                         
+                headers: { 'Content-Type': 'application/json' },                                        
+                body: JSON.stringify({ payload })                                                       
+              });                                                                                       
+            }                                                                                           
+          } catch (err) {                                                                               
+            console.error('Transmission error:', err);                                                  
+          }                                                                                             
+        }                                                                                               
+                                                                                                        
+        // Capture Real Phone Accelerometer Motion                                                      
+        if (window.DeviceMotionEvent) {                                                                 
+          window.addEventListener('devicemotion', (event) => {                                          
+            const acc = event.accelerationIncludingGravity || event.acceleration;                       
+            if (!acc) return;                                                                           
+                                                                                                        
+            // Convert m/s^2 to g-force                                                                 
+            const totalAccelMs2 = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);             
+            const gForce = (totalAccelMs2 / 9.81).toFixed(2);                                           
+                                                                                                        
+            document.getElementById('gForce').innerText = `${gForce} g`;                                
+                                                                                                        
+            if (gForce > 0.6) {                                                                         
+              document.getElementById('status').innerText = '🚨 SEVERE SHOCK DETECTED!';                
+              document.getElementById('status').className = 'alert';                                    
+              sendTelemetry(parseFloat(gForce));                                                        
+            } else {                                                                                    
+              document.getElementById('status').innerText = 'Baseline normal';                          
+              document.getElementById('status').className = '';                                         
+            }                                                                                           
+          });                                                                                           
+        }                                                                                               
+                                                                                                        
+        function triggerEarthquakeQuake() {                                                             
+          document.getElementById('gForce').innerText = '1.80 g';                                       
+          document.getElementById('status').innerText = '🚨 SIMULATED M7.2 EARTHQUAKE SHOCK!';          
+          sendTelemetry(1.80);                                                                          
+        }                                                                                               
+      </script>                                                                                         
+    </body>                                                                                             
+    </html>          
