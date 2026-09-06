@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { rescueService } from '../services/rescue.service';
+import { parseCoordinates } from '../utils/request-parsers';
 
 export const rescueRouter = Router();
 
@@ -25,14 +26,12 @@ rescueRouter.get('/teams', async (req, res, next) => {
 // GET /api/rescue/nearest
 rescueRouter.get('/nearest', async (req, res, next) => {
   try {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
-
-    if (isNaN(lat) || isNaN(lng)) {
+    const coordinates = parseCoordinates(req);
+    if (!coordinates) {
       return res.status(400).json({ success: false, message: 'Valid lat and lng query params required' });
     }
 
-    const teams = await rescueService.findNearestAvailableTeams(lat, lng, 5);
+    const teams = await rescueService.findNearestAvailableTeams(coordinates.lat, coordinates.lng, 5);
     res.json({ success: true, data: teams });
   } catch (err) {
     next(err);

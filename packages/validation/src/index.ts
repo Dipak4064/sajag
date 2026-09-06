@@ -19,7 +19,7 @@ export const sensorValuesSchema = z.object({
 // Telemetry from MQTT / Firebase
 export const telemetryPayloadSchema = z.object({
   deviceId: z.string().min(1),
-  timestamp: z.string().datetime().or(z.string()),
+  timestamp: z.string().datetime({ offset: true }).default(() => new Date().toISOString()),
   location: geoLocationSchema,
   sensors: sensorValuesSchema
 });

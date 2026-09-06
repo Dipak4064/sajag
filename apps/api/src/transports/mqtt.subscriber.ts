@@ -1,7 +1,7 @@
 import mqtt, { MqttClient } from 'mqtt';
 import { logger } from '../utils/logger';
 import { sensorIngestionService } from '../services/ingestion.service';
-import { TelemetryPayload } from '@sajag/types';
+import { parseMqttTelemetry } from './telemetry.parser';
 
 export class MqttSubscriber {
   private client: MqttClient | null = null;
@@ -36,6 +36,8 @@ export class MqttSubscriber {
         // Subscribe to all device telemetry and heartbeats
         this.client?.subscribe('prakop/device/+/telemetry', { qos: 1 });
         this.client?.subscribe('prakop/device/+/heartbeat', { qos: 0 });
+        // `status` is the SRS name; `heartbeat` is retained for older panels.
+        this.client?.subscribe('prakop/device/+/status', { qos: 0 });
         clearTimeout(timeout);
         safeResolve();
       });
@@ -43,7 +45,7 @@ export class MqttSubscriber {
       this.client.on('message', async (topic, message) => {
         try {
           if (topic.endsWith('/telemetry')) {
-            const payload: TelemetryPayload = JSON.parse(message.toString());
+            const payload = parseMqttTelemetry(topic, message);
             await sensorIngestionService.ingestReading(payload, 'MQTT');
           }
         } catch (err: any) {
