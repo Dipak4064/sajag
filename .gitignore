@@ -10,3 +10,5 @@ npm-debug.log*
 .DS_Store
 coverage/
 prisma/*.db
+infrastructure/rustfs/
+*.zip

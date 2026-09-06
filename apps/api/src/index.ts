@@ -19,6 +19,8 @@ import { sheltersRouter } from './routes/shelters.routes';
 import { reportsRouter } from './routes/reports.routes';
 import { usersRouter } from './routes/users.routes';
 import { simRouter } from './routes/sim.routes';
+import { filesRouter } from './routes/files.routes';
+import { adsRouter } from './routes/ads.routes';
 
 dotenv.config();
 
@@ -59,6 +61,8 @@ app.use('/api/shelters', sheltersRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/sim', simRouter);
+app.use('/api/files', filesRouter);
+app.use('/api/ads', adsRouter);
 
 // Global Error Handler
 app.use(errorHandler);
