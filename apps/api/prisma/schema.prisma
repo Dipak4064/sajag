@@ -24,6 +24,7 @@ model User {
   name           String
   email          String?         @unique
   passwordHash   String?
+  photoUrl       String?
   phone          String
   role           String          @default("CITIZEN") // CITIZEN | RESPONDER | RESCUE_TEAM | AUTHORITY | ADMIN
   latitude       Float

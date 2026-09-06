@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { authLoginSchema, authRegisterSchema } from '#sajag-validation';
+import { authLoginSchema, authRegisterSchema, quickRegisterSchema } from '#sajag-validation';
 import { authService, AuthService } from './auth.service';
 
 export class AuthController {
@@ -9,6 +9,19 @@ export class AuthController {
     try {
       const data = authRegisterSchema.parse(req.body);
       const result = await this.service.register(data);
+      res.status(201).json({
+        success: true,
+        data: result
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public quickRegister = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = quickRegisterSchema.parse(req.body);
+      const result = await this.service.quickRegister(data);
       res.status(201).json({
         success: true,
         data: result

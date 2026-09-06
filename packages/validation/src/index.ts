@@ -92,3 +92,16 @@ export const authRegisterSchema = z.object({
   latitude: z.number().default(27.7172),
   longitude: z.number().default(85.3240)
 });
+
+// Passwordless self check-in used by the citizen portal's one-step
+// registration (name + phone + email + optional RustFS photo, no password).
+// These accounts authenticate only via the token returned at registration —
+// they have no passwordHash and cannot use the email/password login.
+export const quickRegisterSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().min(7),
+  email: z.string().email(),
+  photoUrl: z.string().optional(),
+  latitude: z.number().default(27.7172),
+  longitude: z.number().default(85.3240)
+});
