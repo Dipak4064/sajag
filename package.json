@@ -7,24 +7,36 @@
     "apps/*",
     "packages/*"
   ],
+  "imports": {
+    "#sajag-types": { "types": "./packages/types/dist/index.d.ts", "default": "./packages/types/dist/index.js" },
+    "#sajag-validation": { "types": "./packages/validation/dist/index.d.ts", "default": "./packages/validation/dist/index.js" }
+  },
   "scripts": {
-    "dev": "npm run dev --workspaces",
-    "build:packages": "npm run build --workspace=packages/types && npm run build --workspace=packages/validation",
-    "dev:api": "npm run build:packages && npm run db:generate && npm run dev --workspace=apps/api",
-    "dev:sim": "npm run build:packages && npm run dev --workspace=apps/device-sim",
-    "build": "npm run build --workspaces",
-    "lint": "npm run lint --workspaces",
-    "test": "npm run test --workspaces",
-    "db:generate": "npm run db:generate --workspace=apps/api",
-    "db:push": "npm run db:push --workspace=apps/api",
-    "db:seed": "npm run db:seed --workspace=apps/api",
+    "build:packages": "tsc -p packages/types && tsc -p packages/validation",
+    "build:api": "npm run build:packages && prisma generate --schema apps/api/prisma/schema.prisma && tsc -p apps/api/tsconfig.json",
+    "build:sim": "npm run build:packages && tsc -p apps/device-sim/tsconfig.json",
+    "build": "npm run build:packages && npm run build:api && npm run build:sim",
+    "dev:api": "npm run build:packages && prisma generate --schema apps/api/prisma/schema.prisma && tsx apps/api/src/index.ts",
+    "dev:sim": "npm run build:packages && tsx apps/device-sim/src/index.ts",
+    "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:push": "prisma db push --schema apps/api/prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "db:migrate:create": "prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "db:seed": "tsx apps/api/prisma/seed.ts",
+    "db:studio": "prisma studio --schema apps/api/prisma/schema.prisma",
     "broker": "node infrastructure/broker.js",
     "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d",
     "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
     "sim:up": "docker compose -f infrastructure/compose.simulation.yml up -d --build --wait",
     "sim:down": "docker compose -f infrastructure/compose.simulation.yml down",
     "sim:logs": "docker compose -f infrastructure/compose.simulation.yml logs -f",
-    "sim:test": "node tests/simulation-smoke.cjs"
+    "sim:test": "node tests/simulation-smoke.cjs",
+    "start:api": "node apps/api/dist/index.js",
+    "start:sim": "node apps/device-sim/dist/index.js"
+  },
+  "prisma": {
+    "schema": "apps/api/prisma/schema.prisma",
+    "seed": "tsx apps/api/prisma/seed.ts"
   },
   "keywords": [
     "disaster-response",
@@ -37,11 +49,38 @@
   ],
   "author": "SAJAG Team",
   "license": "MIT",
-  "devDependencies": {
-    "aedes": "^1.1.2",
-    "@types/swagger-ui-express": "^4.1.8"
-  },
   "dependencies": {
-    "swagger-ui-express": "^5.0.1"
+    "@aws-sdk/client-s3": "^3.1127.0",
+    "@aws-sdk/s3-request-presigner": "^3.1127.0",
+    "@prisma/client": "^5.13.0",
+    "axios": "^1.6.8",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.2.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mqtt": "^5.5.2",
+    "multer": "^1.4.5-lts.1",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "socket.io": "^4.7.5",
+    "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.12.7",
+    "@types/swagger-ui-express": "^4.1.8",
+    "aedes": "^1.1.2",
+    "prisma": "^5.13.0",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
   }
 }

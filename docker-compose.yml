@@ -1,0 +1,100 @@
+name: sajag
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sajag
+      POSTGRES_PASSWORD: simulation
+      POSTGRES_DB: sajag_simulation
+    volumes:
+      - sajag_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U sajag -d sajag_simulation"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    volumes:
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "sajag/health", "-m", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    image: sajag-api:local
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    env_file:
+      - .env
+    environment:
+      DB_MIGRATE_ON_START: "true"
+      LOCAL_DATABASE_URL: postgresql://sajag:simulation@postgres:5432/sajag_simulation
+      MQTT_URL: mqtt://mosquitto:1883
+      SIMULATOR_URL: http://device-sim:4001
+      CORS_ORIGIN: http://localhost:3000,http://localhost:3001
+      SIMULATION_MODE: "true"
+      LORA_GATEWAY_TOKEN: local-simulation-gateway
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  lora-sim:
+    image: sajag-lora-sim:local
+    build:
+      context: .
+      dockerfile: infrastructure/docker/lora-sim.Dockerfile
+    environment:
+      API_URL: http://api:4000
+      LORA_GATEWAY_TOKEN: local-simulation-gateway
+      LORA_LOSS_RATE: "${LORA_LOSS_RATE:-0}"
+    ports:
+      - "${LORA_PORT:-4002}:4002"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4002/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  device-sim:
+    image: sajag-device-sim:local
+    build:
+      context: .
+      dockerfile: infrastructure/docker/device-sim.Dockerfile
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      LORA_SIM_URL: http://lora-sim:4002
+    ports:
+      - "${SIMULATOR_PORT:-4001}:4001"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      lora-sim:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  sajag_db:

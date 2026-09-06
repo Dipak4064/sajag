@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pino from 'pino';
-import { simulateScenarioSchema, simulateNetworkModeSchema } from '@sajag/validation';
+import { simulateScenarioSchema, simulateNetworkModeSchema } from '#sajag-validation';
 import { KATHMANDU_VIRTUAL_DEVICES, VirtualDeviceConfig } from './devices';
 import { TelemetryGenerator } from './generator';
 import { DeviceMqttClient } from './mqtt.client';

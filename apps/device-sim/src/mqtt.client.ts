@@ -1,6 +1,6 @@
 import mqtt, { MqttClient } from 'mqtt';
 import pino from 'pino';
-import { TelemetryPayload } from '@sajag/types';
+import { TelemetryPayload } from '#sajag-types';
 
 const logger = pino({ name: 'DeviceSim:MQTT' });
 

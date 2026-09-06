@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>SAJAG — Mobile ESP32 Node</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;padding:12px;min-height:100vh}
+    h1{font-size:1.2rem;font-weight:800;color:#38bdf8;margin-bottom:4px}
+    p.sub{font-size:0.78rem;color:#94a3b8;margin-bottom:16px}
+    .card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:12px}
+    .card h2{font-size:0.9rem;font-weight:700;color:#cbd5e1;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+    .big-val{font-size:3rem;font-weight:900;color:#38bdf8;line-height:1;text-align:center;padding:8px 0}
+    .big-val.alert-val{color:#f43f5e;animation:pulse 0.5s infinite alternate}
+    @keyframes pulse{from{opacity:1}to{opacity:.5}}
+    .status-line{text-align:center;font-size:.85rem;color:#94a3b8;margin:6px 0 12px}
+    .status-line.danger{color:#f43f5e;font-weight:700}
+    .status-line.ok{color:#4ade80}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:600;margin:2px}
+    .badge.green{background:#065f46;color:#6ee7b7}
+    .badge.amber{background:#78350f;color:#fcd34d}
+    .badge.red{background:#7f1d1d;color:#fca5a5}
+    .badge.blue{background:#1e3a5f;color:#93c5fd}
+    .btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:.2s;margin-top:8px}
+    .btn:active{transform:scale(.97)}
+    .btn-red{background:#e11d48;color:#fff}
+    .btn-blue{background:#2563eb;color:#fff}
+    .btn-slate{background:#475569;color:#fff}
+    .btn-amber{background:#d97706;color:#fff}
+    .log{background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:8px;font-family:monospace;font-size:.72rem;max-height:120px;overflow-y:auto;color:#94a3b8;margin-top:8px}
+    .log .ok{color:#4ade80}
+    .log .err{color:#f43f5e}
+    .log .info{color:#60a5fa}
+    .axes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0}
+    .axis-box{background:#0f172a;border-radius:8px;padding:8px;text-align:center}
+    .axis-box .label{font-size:.7rem;color:#64748b;margin-bottom:2px}
+    .axis-box .val{font-size:1.1rem;font-weight:700;color:#7dd3fc}
+    .mode-bar{display:flex;gap:8px;margin-bottom:8px}
+    .mode-bar button{flex:1}
+    .active-mode{outline:2px solid #38bdf8!important}
+  </style>
+</head>
+<body>
+  <h1>📱 SAJAG Mobile ESP32</h1>
+  <p class="sub">Virtual ESP32 • phone motion + simulated environment</p>
+
+  <!-- Connection status -->
+  <div class="card">
+    <h2>Connection</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+      <span class="badge blue">📡 Phone → API</span>
+      <span class="badge green" id="apiBadge">API ●</span>
+      <span class="badge green" id="mqttBadge">Direct HTTP</span>
+    </div>
+    <div style="margin-top:8px;font-size:.78rem;color:#64748b">
+      DeviceID: <strong style="color:#93c5fd">ESP32-MOBILE-USB-01</strong> &nbsp;|&nbsp;
+      Location: <strong style="color:#93c5fd">Kathmandu (simulated)</strong>
+    </div>
+  </div>
+
+  <!-- Network mode -->
+  <div class="card">
+    <h2>Transport Mode</h2>
+    <div class="mode-bar">
+      <button class="btn btn-blue active-mode" id="wifiBtn" onclick="setMode('wifi')">📶 WiFi / USB</button>
+      <button class="btn btn-amber" id="loraBtn" onclick="setMode('lora')">📻 LoRa Fallback</button>
+    </div>
+    <p style="font-size:.75rem;color:#64748b;text-align:center">
+      WiFi: POST → <code>/api/transports/lora</code><br>
+      LoRa: POST → <code>/api/sim/lora-transmit</code> (routed via API, no direct 4002)
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>LoRa gateway · simulated radio</h2>
+    <p id="radioStatus">Checking gateway…</p>
+    <p id="radioStats" style="margin-top:10px;font-size:.85rem"></p>
+    <p style="color:#94a3b8;font-size:.75rem;margin-top:8px">Phone → API → SimPy radio → backend. Accepted packets may collide or be lost. Counters include every simulated node; they are not per-packet delivery receipts.</p>
+  </div>
+  <div class="card">
+    <h2>Environment controls</h2>
+    <label>Water level (cm) <input id="water" type="number" min="0" max="500" value="25"></label><br><br>
+    <label>Rainfall (mm/hr) <input id="rain" type="number" min="0" max="500" value="5"></label><br><br>
+    <label>Soil moisture (%) <input id="soil" type="number" min="0" max="100" value="35"></label>
+    <button class="btn btn-blue" onclick="sendEnvironment()">Send environment reading</button>
+    <button class="btn btn-slate" id="streamBtn" onclick="toggleStream()">Start stream (every 3 seconds)</button>
+    <p style="color:#94a3b8;font-size:.75rem;margin-top:8px">Environmental values and location are simulated. Acceleration uses phone motion when enabled. Keep this page open while streaming.</p>
+  </div>
+  <!-- Live accelerometer -->
+  <div class="card">
+    <h2>Accelerometer (Phone Sensor)</h2>
+    <div class="big-val" id="gDisplay">0.00 g</div>
+    <p class="status-line" id="sensorStatus">Tap "Enable Sensor" below</p>
+    <div class="axes">
+      <div class="axis-box"><div class="label">X (m/s²)</div><div class="val" id="axX">0.00</div></div>
+      <div class="axis-box"><div class="label">Y (m/s²)</div><div class="val" id="axY">0.00</div></div>
+      <div class="axis-box"><div class="label">Z (m/s²)</div><div class="val" id="axZ">0.00</div></div>
+    </div>
+    <button class="btn btn-slate" onclick="requestMotionPermission()">📐 Enable Motion Sensor</button>
+  </div>
+
+  <!-- Manual trigger -->
+  <div class="card">
+    <h2>Manual Earthquake Trigger</h2>
+    <p style="font-size:.78rem;color:#94a3b8;margin-bottom:8px">
+      Sends simulated readings through the selected transport. Configured backend alert workflows may run.
+    </p>
+    <button class="btn btn-red" onclick="triggerEarthquake()">🚨 Simulate Earthquake (1.8g)</button>
+    <button class="btn btn-amber" style="margin-top:6px" onclick="triggerFlood()">🌊 Trigger Flood Alert (waterLevel 95cm)</button>
+  </div>
+
+  <!-- Seed / test buttons -->
+  <div class="card">
+    <h2>Quick Tests</h2>
+    <button class="btn btn-slate" onclick="pingApi()">🏓 Ping API /health</button>
+    <button class="btn btn-slate" style="margin-top:6px" onclick="sendBaseline()">📤 Send Baseline Reading (normal)</button>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <h2>Log</h2>
+    <div class="log" id="log"><span class="info">Ready. Enable motion sensor or use manual triggers.</span></div>
+  </div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let transportMode = 'wifi';   // 'wifi' | 'lora'
+let sensorActive  = false;
+let lastSent      = 0;
+let currentG = 0;
+let streamTimer;
+let sending = false;
+const DEBOUNCE_MS = 2000;     // max 1 POST per 2 s from live sensor
+
+// ─── Logging ──────────────────────────────────────────────────────────────────
+function log(msg, cls='info') {
+  const el  = document.getElementById('log');
+  const row = document.createElement('div');
+  row.className = cls;
+  row.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.prepend(row);
+  while (el.children.length > 60) el.removeChild(el.lastChild);
+}
+
+// ─── Mode selector ────────────────────────────────────────────────────────────
+function setMode(mode) {
+  transportMode = mode;
+  document.getElementById('wifiBtn').classList.toggle('active-mode', mode === 'wifi');
+  document.getElementById('loraBtn').classList.toggle('active-mode', mode === 'lora');
+  log(`Transport mode → ${mode === 'wifi' ? 'WiFi/USB (direct API)' : 'LoRa fallback (via API proxy)'}`, 'info');
+}
+
+// ─── Telemetry builder ────────────────────────────────────────────────────────
+function buildPayload(accelG, overrides={}) {
+  return {
+    deviceId:  'ESP32-MOBILE-USB-01',
+    timestamp: new Date().toISOString(),
+    location:  { lat: 27.6910, lng: 85.3040 },
+    sensors: Object.assign({
+      acceleration: accelG,
+      waterLevel:   25,
+      soilMoisture: 35,
+      rainfall:     5
+    }, overrides)
+  };
+}
+
+// ─── Send telemetry ───────────────────────────────────────────────────────────
+async function sendTelemetry(payload) {
+  const isLora = transportMode === 'lora';
+  // Both modes post to the API (which runs on localhost:4000 via ADB reverse).
+  // WiFi mode → /api/transports/lora  (direct LoRa ingress)
+  // LoRa mode → /api/sim/lora-transmit (proxied to lora-sim, still via API)
+  const endpoint = isLora ? '/api/sim/lora-transmit' : '/api/transports/lora';
+  const headers  = isLora
+    ? { 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json', 'x-gateway-token': 'local-simulation-gateway' };
+
+  if (sending) return;
+  sending = true;
+  try {
+    const res  = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(10000) });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) {
+      log(`${isLora ? 'LoRa queued (delivery pending)' : 'Direct HTTP stored'} | accel=${payload.sensors.acceleration}g`, 'ok');
+      // Highlight alert if triggered
+      if (json.data?.evaluation?.isAlertTriggerRequired) {
+        log('Alert threshold reached — backend alert workflow requested.', 'err');
+      }
+    } else {
+      log(`⚠️ API ${res.status}: ${JSON.stringify(json).slice(0,80)}`, 'err');
+    }
+  } catch (err) {
+    log(`Network error: ${err.message}`, 'err');
+  } finally { sending = false; }
+}
+
+// ─── Motion sensor ────────────────────────────────────────────────────────────
+function requestMotionPermission() {
+  if (!window.isSecureContext) { log('Motion requires HTTPS or Android USB with adb reverse and localhost. Manual controls still work.', 'err'); return; }
+  if (typeof DeviceMotionEvent === 'undefined') { log('Motion sensor is unavailable in this browser.', 'err'); return; }
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    // iOS 13+
+    DeviceMotionEvent.requestPermission()
+      .then(r => { if (r === 'granted') bindMotion(); else log('Motion permission denied.', 'err'); })
+      .catch(e => log(`Permission error: ${e}`, 'err'));
+  } else {
+    bindMotion();
+  }
+}
+
+function bindMotion() {
+  if (sensorActive) return;
+  sensorActive = true;
+  log('Waiting for motion readings…', 'info');
+  setTimeout(() => { if (!lastMotion) log('No motion readings received. Check browser motion permission and use HTTPS or USB localhost.', 'err'); }, 5000);
+  window.addEventListener('devicemotion', onMotion);
+}
+
+let lastMotion = 0;
+function onMotion(e) {
+  const linear = e.acceleration;
+  const hasLinear = linear && [linear.x, linear.y, linear.z].every(v => typeof v === 'number' && Number.isFinite(v));
+  const acc = hasLinear ? linear : e.accelerationIncludingGravity;
+  if (!acc || ![acc.x, acc.y, acc.z].every(v => typeof v === 'number' && Number.isFinite(v))) return;
+  lastMotion = Date.now();
+
+  const x = acc.x ?? 0, y = acc.y ?? 0, z = acc.z ?? 0;
+  const totalMs2 = Math.sqrt(x*x + y*y + z*z);
+  const gForce = Number((hasLinear ? totalMs2 / 9.81 : Math.abs(totalMs2 / 9.81 - 1)).toFixed(2));
+  currentG = gForce;
+
+  document.getElementById('axX').textContent = x.toFixed(2);
+  document.getElementById('axY').textContent = y.toFixed(2);
+  document.getElementById('axZ').textContent = z.toFixed(2);
+  document.getElementById('gDisplay').textContent = `${gForce} g`;
+
+  const gEl   = document.getElementById('gDisplay');
+  const sEl   = document.getElementById('sensorStatus');
+  const isShock = gForce > 0.6;
+  gEl.className = isShock ? 'big-val alert-val' : 'big-val';
+  sEl.className = isShock ? 'status-line danger' : 'status-line ok';
+  sEl.textContent = isShock
+    ? `🚨 SEVERE SHOCK (${gForce}g) — Sending telemetry…`
+    : `Baseline normal (${gForce}g)`;
+
+  if (isShock && Date.now() - lastSent > DEBOUNCE_MS) {
+    lastSent = Date.now();
+    sendTelemetry(buildPayload(gForce));
+  }
+}
+
+// ─── Manual triggers ──────────────────────────────────────────────────────────
+function triggerEarthquake() {
+  document.getElementById('gDisplay').textContent = '1.80 g';
+  document.getElementById('gDisplay').className = 'big-val alert-val';
+  document.getElementById('sensorStatus').textContent = 'SIMULATED SHOCK (1.8g)';
+  document.getElementById('sensorStatus').className = 'status-line danger';
+  log('Manual earthquake trigger → 1.8g', 'err');
+  sendTelemetry(buildPayload(1.80));
+}
+
+function triggerFlood() {
+  log('Manual flood trigger → waterLevel=95cm', 'err');
+  sendTelemetry(buildPayload(0.15, { waterLevel: 95, rainfall: 80 }));
+}
+
+function sendBaseline() {
+  log('Sending baseline reading…', 'info');
+  sendTelemetry(buildPayload(0.12));
+}
+
+async function pingApi() {
+  try {
+    const res  = await fetch('/health');
+    const json = await res.json();
+    log(`API health: ${JSON.stringify(json)}`, res.ok ? 'ok' : 'err');
+  } catch (e) {
+    log(`API unreachable: ${e.message}`, 'err');
+  }
+}
+
+function environmentPayload() {
+  const values = ['water', 'rain', 'soil'].map(id => {
+    const el = document.getElementById(id);
+    if (!el.value || !el.checkValidity()) throw new Error('Enter environmental values within the displayed limits.');
+    return Number(el.value);
+  });
+  return buildPayload(Date.now() - lastMotion < 5000 ? currentG : 0, { waterLevel: values[0], rainfall: values[1], soilMoisture: values[2] });
+}
+function sendEnvironment() {
+  try { sendTelemetry(environmentPayload()); } catch(e) { log(e.message, 'err'); }
+}
+function toggleStream() {
+  if (streamTimer) { clearInterval(streamTimer); streamTimer = undefined; }
+  else { sendEnvironment(); streamTimer = setInterval(sendEnvironment, 3000); }
+  document.getElementById('streamBtn').textContent = streamTimer ? 'Stop stream' : 'Start stream (every 3 seconds)';
+}
+async function refreshRadio() {
+  try {
+    const r = await fetch('/api/sim/lora-health', { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) throw new Error('Gateway unavailable');
+    const d = await r.json();
+    document.getElementById('radioStatus').textContent = `Gateway online · ${d.engine} · airtime ${d.airtimeMs}ms · loss ${Math.round(d.lossRate * 100)}%`;
+    const s = d.stats;
+    document.getElementById('radioStats').textContent = `Submitted ${s.submitted} · Received ${s.received} · Forwarded ${s.forwarded} · Collisions ${s.collisions} · Lost ${s.lost} · Forwarding errors ${s.forwarding_errors}`;
+  } catch(e) {
+    document.getElementById('radioStatus').textContent = 'LoRa gateway offline — start the simulation stack.';
+    document.getElementById('radioStats').textContent = '';
+  } finally { setTimeout(refreshRadio, 4000); }
+}
+refreshRadio();
+// ─── Startup API check ────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const r = await fetch('/health');
+    if (r.ok) {
+      document.getElementById('apiBadge').className = 'badge green';
+      document.getElementById('apiBadge').textContent = 'API ✓';
+      document.getElementById('mqttBadge').className = 'badge green';
+      document.getElementById('mqttBadge').textContent = 'Direct HTTP';
+      log('Connected to SAJAG API successfully.', 'ok');
+    } else {
+      throw new Error(`HTTP ${r.status}`);
+    }
+  } catch (e) {
+    document.getElementById('apiBadge').className = 'badge red';
+    document.getElementById('apiBadge').textContent = 'API ✗';
+    document.getElementById('mqttBadge').className = 'badge red';
+    document.getElementById('mqttBadge').textContent = 'Direct HTTP offline';
+    log(`API unreachable — is adb reverse tcp:4000 tcp:4000 running? (${e.message})`, 'err');
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { ScenarioMode } from '@sajag/types';
+import { ScenarioMode } from '#sajag-types';
 import { TelemetryGenerator } from '../generator';
 
 const logger = pino({ name: 'DeviceSim:ScenarioManager' });

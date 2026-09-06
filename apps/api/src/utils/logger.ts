@@ -1,16 +1,2 @@
-import pino from 'pino';
+export { logger } from '../shared/logging/logger';
 
-export const logger = pino({
-  name: 'Sajag:API',
-  level: process.env.LOG_LEVEL || 'info',
-  transport:
-    process.env.NODE_ENV !== 'production'
-      ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'SYS:standard'
-          }
-        }
-      : undefined
-});

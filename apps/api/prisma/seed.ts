@@ -13,6 +13,7 @@ async function main() {
   await prisma.sensorReading.deleteMany();
   await prisma.sOSRequest.deleteMany();
   await prisma.citizenReport.deleteMany();
+  
   await prisma.rescueTeam.deleteMany();
   await prisma.shelter.deleteMany();
   await prisma.user.deleteMany();
@@ -240,16 +241,16 @@ async function main() {
     }
   });
 
-  // Demo Citizen
+  // Demo Citizen (Target Mobile Number)
   await prisma.user.create({
     data: {
-      name: 'Aayush Maharjan (Demo Citizen)',
-      email: 'citizen@sajag.np',
+      name: 'Udesh Regmi (Target Citizen)',
+      email: 'udesh@sajag.np',
       passwordHash,
-      phone: '+9779800000001',
+      phone: '+9779843083808',
       role: 'CITIZEN',
       latitude: 27.6910,
-      longitude: 27.3040, // Near Balkhu river
+      longitude: 85.3040, // Near Balkhu river station
       status: 'UNKNOWN',
       municipalityId: municipality.id
     }
