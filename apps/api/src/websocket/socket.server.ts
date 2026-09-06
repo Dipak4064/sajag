@@ -15,11 +15,12 @@ export class WebSocketService {
     return WebSocketService.instance;
   }
 
-  public init(httpServer: HttpServer, corsOrigin: string = '*') {
+  public init(httpServer: HttpServer, corsOrigin: string | string[] = '*') {
     this.io = new SocketIOServer(httpServer, {
       cors: {
         origin: corsOrigin,
-        methods: ['GET', 'POST', 'PATCH']
+        methods: ['GET', 'POST', 'PATCH'],
+        credentials: true
       }
     });
 

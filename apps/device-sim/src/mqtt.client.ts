@@ -12,6 +12,19 @@ export class DeviceMqttClient {
 
   public connect(): Promise<void> {
     return new Promise((resolve) => {
+      let resolved = false;
+      const safeResolve = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        logger.warn(`MQTT connection timeout at ${this.brokerUrl}. Continuing in background...`);
+        safeResolve();
+      }, 3000);
+
       logger.info(`Connecting to MQTT broker at ${this.brokerUrl}...`);
       this.client = mqtt.connect(this.brokerUrl, {
         reconnectPeriod: 2000,
@@ -22,7 +35,8 @@ export class DeviceMqttClient {
       this.client.on('connect', () => {
         this.isConnected = true;
         logger.info('Connected to MQTT Broker successfully.');
-        resolve();
+        clearTimeout(timeout);
+        safeResolve();
       });
 
       this.client.on('error', (err) => {

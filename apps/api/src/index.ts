@@ -26,17 +26,19 @@ const app = express();
 const server = http.createServer(app);
 
 const port = Number(process.env.PORT || 4000);
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : ['http://localhost:3000', 'http://localhost:3001'];
 
 // Security & Parsing
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: corsOrigin, credentials: true }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Initialize Real-time WebSocket
 const wsService = WebSocketService.getInstance();
-wsService.init(server, corsOrigin);
+wsService.init(server, allowedOrigins);
 
 // Health Check
 app.get('/health', (req, res) => {

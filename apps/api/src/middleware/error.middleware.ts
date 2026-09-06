@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 
 export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
-  logger.error(`API Error: ${err.message}`, { stack: err.stack, path: req.path });
+  logger.error({ stack: err.stack, path: req.path }, `API Error: ${err.message}`);
 
   const statusCode = err.status || err.statusCode || 500;
   res.status(statusCode).json({

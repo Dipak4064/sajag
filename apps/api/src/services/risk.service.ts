@@ -41,15 +41,23 @@ export class RiskEngineService {
       Math.max(0, (sensors.rainfall / 75) * 100)
     );
 
-    // 5. Weighted Overall Risk Score
-    const overallScore = Number(
-      (
-        0.30 * earthquakeScore +
-        0.25 * rainfallScore +
-        0.20 * soilScore +
-        0.25 * waterScore
-      ).toFixed(1)
+    // 5. Weighted Baseline and Dominant Acute Hazard Score
+    const weightedBaseline = (
+      0.30 * earthquakeScore +
+      0.25 * rainfallScore +
+      0.20 * soilScore +
+      0.25 * waterScore
     );
+
+    // Any acute hazard (e.g. violent seismic shockwave or severe flood spike)
+    // represents an immediate emergency that elevates the threat score.
+    const dominantHazard = Math.max(
+      earthquakeScore,
+      waterScore * 0.7 + rainfallScore * 0.3,
+      soilScore * 0.6 + rainfallScore * 0.4
+    );
+
+    const overallScore = Number(Math.max(weightedBaseline, dominantHazard).toFixed(1));
 
     // 6. Assign Severity Level
     let severity: SeverityLevel = 'LOW';
