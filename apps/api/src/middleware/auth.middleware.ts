@@ -30,6 +30,24 @@ export function authenticateJwt(req: AuthenticatedRequest, res: Response, next: 
   }
 }
 
+export function optionalAuthenticateJwt(req: AuthenticatedRequest, _res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return next();
+  }
+
+  const token = authHeader.split(' ')[1];
+  const secret = config.jwtSecret;
+
+  try {
+    const decoded = jwt.verify(token, secret) as any;
+    req.user = decoded;
+  } catch {
+    // If invalid or expired, continue as unauthenticated request
+  }
+  next();
+}
+
 export function requireRole(allowedRoles: UserRole[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {

@@ -56,12 +56,15 @@ export const sosStatusUpdateSchema = z.object({
 
 // Citizen Report
 export const citizenReportCreateSchema = z.object({
-  disasterType: z.enum(['FLOOD', 'LANDSLIDE', 'EARTHQUAKE', 'FOREST_FIRE', 'STORM', 'OTHER']),
+  disasterType: z.enum(['FLOOD', 'LANDSLIDE', 'EARTHQUAKE', 'FOREST_FIRE', 'STORM', 'ROAD_BLOCKED', 'OTHER']),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   addressText: z.string().optional(),
   description: z.string().min(5),
-  mediaUrls: z.array(z.string().url()).default([])
+  // Uploaded photos come back from storageService as API-relative paths
+  // (e.g. "/api/files/reports/xyz.jpg"), not absolute URLs — matches how
+  // photoUrl is stored elsewhere, so this must not require a full URL.
+  mediaUrls: z.array(z.string()).default([])
 });
 
 // Scenario Simulation
