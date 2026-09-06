@@ -67,8 +67,10 @@ export class DeviceMqttClient {
     if (!this.client || !this.isConnected) {
       return false;
     }
-    const topic = `prakop/device/${deviceId}/heartbeat`;
-    this.client.publish(topic, JSON.stringify({ deviceId, timestamp: new Date().toISOString() }), { qos: 0 });
+    const payload = JSON.stringify({ deviceId, timestamp: new Date().toISOString() });
+    // Publish the SRS topic and retain the legacy alias for existing panels.
+    this.client.publish(`prakop/device/${deviceId}/status`, payload, { qos: 0 });
+    this.client.publish(`prakop/device/${deviceId}/heartbeat`, payload, { qos: 0 });
     return true;
   }
 

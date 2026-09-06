@@ -15,6 +15,8 @@ export class ScenarioManager {
       this.activeScenarioTimer = null;
     }
 
+    this.generator.clearAllOverrides();
+
     logger.info(`Starting scripted disaster scenario: ${scenario} on ${targetDeviceId} for ${durationSeconds}s`);
 
     if (scenario === 'NORMAL') {

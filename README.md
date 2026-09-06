@@ -1,5 +1,13 @@
 # 🚨 SAJAG // PRAKOP (सजग)
 ### Disaster Alert, Community Response & Virtual-IoT Emergency Platform
+
+> **Full platform with MQTT and LoRa, without seed data:** run `./run-sajag.sh` from the project root.
+> For Docker services only, run `npm run sim:up` from `sajag_backend`.
+> Follow [IoT MQTT Panel + local SimPy LoRa setup](docs/live-simulation.md).
+> See the [backend architecture and SRS traceability guide](docs/backend-architecture.md),
+> or open Swagger UI at `http://localhost:4000/docs` after starting the API.
+> This standalone Docker stack supersedes the legacy seeded demo below.
+
 **24-Hour Hackathon Edition • 100% Free-Tier Stack • No Physical Hardware Required**
 
 ---
@@ -8,7 +16,7 @@
 
 **SAJAG (Prakop)** is a mission-critical disaster early-warning and community response platform built specifically for the geographical hazards of Nepal (Kathmandu Valley, Bagmati river basin, steep landslide corridors, and seismic faultlines), engineered to scale globally.
 
-Because physical ESP32 and LoRa radio hardware are often unavailable during rapid hackathon builds, **SAJAG solves the hardware barrier with a software Virtual ESP32 Simulator (`apps/device-sim`)**. The simulator publishes identical telemetry on the same topics and can dynamically fail over between WiFi (MQTT) and LoRa fallback (Firebase Realtime Database) on demand.
+Because physical ESP32 and LoRa radio hardware are often unavailable during rapid hackathon builds, **SAJAG solves the hardware barrier with a software Virtual ESP32 Simulator (`apps/device-sim`)**. The simulator publishes identical telemetry on the same topics and can dynamically fail over between WiFi (MQTT) and LoRa fallback (local SimPy gateway) on demand.
 
 ### The 10-Step Emergency Lifecycle:
 ```text
@@ -30,13 +38,13 @@ DETECT ──> ANALYZE ──> PREDICT ──> ALERT ──> LOCATE ──> REPO
              ┌─────────────┴─────────────┐
              ▼                           ▼
    PRIMARY (WiFi Present)      FALLBACK (WiFi Outage)
-      MQTT (Mosquitto)           Firebase RTDB (LoRa Sim)
+      MQTT (Mosquitto)           SimPy LoRa Gateway
              │                           │
              └─────────────┬─────────────┘
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │             NODE.JS BACKEND (apps/api)                 │
-│  • Dual Transport Ingestion (MQTT + Firebase)          │
+│  • Dual Transport Ingestion (MQTT + LoRa gateway)          │
 │  • Deterministic Risk Engine (0-100 Multi-hazard)      │
 │  • Alert State Machine (DETECTED ──> RESOLVED)         │
 │  • Haversine Geofencing (5km Danger Radius)            │
@@ -200,14 +208,14 @@ npm run dev:web   # Next.js Command Center on http://localhost:3000
 ### Scenario 5: 📡 Network Outage & Failover to LoRa Link (The Hackathon Winner)
 * In the dashboard, navigate to **IoT Sensors & LoRa** ([http://localhost:3000/dashboard/devices](http://localhost:3000/dashboard/devices)).
 * Click **"Simulate Outage ⚡"** next to `ESP32-KTM-001`.
-* Watch the icon instantly change from **WiFi / MQTT 📶** to **LoRa Fallback 📡 (Firebase RTDB)**.
+* Watch the icon instantly change from **WiFi / MQTT 📶** to **LoRa Fallback 📡 (SimPy gateway)**.
 * Telemetry and alerts continue streaming with zero interruption!
 
 ---
 
 ## 🛡️ 6. Security & Guardrails
 1. **Deterministic Risk Calculations**: Telemetry risk scores and hazard levels are 100% computed server-side in `risk.service.ts`. Client/device-provided risk fields are strictly stripped.
-2. **LoRa Simulation Honesty**: We clearly identify the secondary channel as a simulated LoRa fallback path powered by Firebase Realtime Database.
+2. **LoRa Simulation Honesty**: We clearly identify the secondary channel as a simulated LoRa fallback path powered by a local SimPy radio model.
 3. **No Unsafe Assumptions**: Road routing and evacuation paths are marked as advisory emergency guidelines.
 
 ---

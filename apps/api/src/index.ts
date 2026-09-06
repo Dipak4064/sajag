@@ -7,6 +7,9 @@ import { logger } from './utils/logger';
 import { WebSocketService } from './websocket/socket.server';
 import { MqttSubscriber } from './transports/mqtt.subscriber';
 import { FirebaseLoRaListener } from './transports/firebase.listener';
+import { transportsRouter } from './routes/transports.routes';
+import swaggerUi from 'swagger-ui-express';
+import { openApiDocument } from './openapi';
 import { errorHandler } from './middleware/error.middleware';
 
 // Routes
@@ -49,6 +52,11 @@ app.get('/health', (req, res) => {
   });
 });
 
+// OpenAPI is intentionally available without authentication so operators can
+// inspect the transport contracts before connecting a device or panel.
+app.get('/openapi.json', (_req, res) => res.json(openApiDocument));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, { explorer: true }));
+
 // Mount Routes
 app.use('/api/auth', authRouter);
 app.use('/api/devices', devicesRouter);
@@ -58,6 +66,7 @@ app.use('/api/rescue', rescueRouter);
 app.use('/api/shelters', sheltersRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/transports', transportsRouter);
 app.use('/api/sim', simRouter);
 
 // Global Error Handler

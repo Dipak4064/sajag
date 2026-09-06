@@ -6,7 +6,7 @@ import { simulateScenarioSchema, simulateNetworkModeSchema } from '@sajag/valida
 import { KATHMANDU_VIRTUAL_DEVICES, VirtualDeviceConfig } from './devices';
 import { TelemetryGenerator } from './generator';
 import { DeviceMqttClient } from './mqtt.client';
-import { DeviceFirebaseClient } from './firebase.client';
+import { DeviceLoRaClient } from './lora.client';
 import { ScenarioManager } from './scenarios/scenario.manager';
 
 dotenv.config();
@@ -26,12 +26,7 @@ KATHMANDU_VIRTUAL_DEVICES.forEach((d) => deviceStates.set(d.deviceId, { ...d }))
 const generator = new TelemetryGenerator();
 const scenarioManager = new ScenarioManager(generator);
 const mqttClient = new DeviceMqttClient(mqttUrl);
-const firebaseClient = new DeviceFirebaseClient(
-  process.env.FIREBASE_PROJECT_ID,
-  process.env.FIREBASE_DB_URL,
-  process.env.FIREBASE_CLIENT_EMAIL,
-  process.env.FIREBASE_PRIVATE_KEY
-);
+const loraClient = new DeviceLoRaClient(process.env.LORA_SIM_URL || 'http://localhost:4002');
 
 // Control API
 app.get('/health', (req, res) => {
@@ -50,6 +45,7 @@ app.post('/simulate/scenario', (req, res) => {
   }
 
   const { scenario, targetDeviceId, durationSeconds } = parseResult.data;
+  if (targetDeviceId && !deviceStates.has(targetDeviceId)) return res.status(404).json({ error: 'Unknown device' });
   scenarioManager.triggerScenario(scenario, targetDeviceId || 'ESP32-KTM-001', durationSeconds || 30);
 
   res.json({
@@ -69,6 +65,7 @@ app.post('/simulate/network-mode', (req, res) => {
 
   if (deviceId) {
     const dev = deviceStates.get(deviceId);
+    if (!dev) return res.status(404).json({ error: 'Unknown device' });
     if (dev) {
       dev.transport = mode === 'LORA_FALLBACK' ? 'LORA_SIM' : 'MQTT';
       logger.info(`Switched device ${deviceId} transport to ${dev.transport}`);
@@ -86,7 +83,7 @@ app.post('/simulate/network-mode', (req, res) => {
 
 // Start background 3-second telemetry publishing loop
 function startSimulationLoop() {
-  setInterval(async () => {
+  const tick = async () => {
     for (const device of deviceStates.values()) {
       if (!device.isActive) continue;
 
@@ -96,10 +93,12 @@ function startSimulationLoop() {
         mqttClient.publishTelemetry(reading);
         mqttClient.publishHeartbeat(device.deviceId);
       } else {
-        await firebaseClient.publishLoRaPayload(reading);
+        await loraClient.publishTelemetry(reading);
       }
     }
-  }, 3000);
+    setTimeout(tick, 3000);
+  };
+  void tick();
 }
 
 async function start() {
@@ -114,4 +113,5 @@ async function start() {
 
 start().catch((err) => {
   logger.error(`Fatal startup error in Device Simulator: ${err.message}`);
+  process.exit(1);
 });

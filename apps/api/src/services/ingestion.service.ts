@@ -1,3 +1,4 @@
+import { telemetryPayloadSchema } from '@sajag/validation';
 import { prisma } from '../db/prisma';
 import { WebSocketService } from '../websocket/socket.server';
 import { riskEngine } from './risk.service';
@@ -11,43 +12,35 @@ export class SensorIngestionService {
   private alertDebounceMs = 30000; // 30s debounce to prevent duplicate alerts
 
   /**
-   * Unified ingestion for both MQTT and Firebase RTDB transports
+   * Unified ingestion for MQTT and simulated LoRa gateway transports
    */
   public async ingestReading(payload: TelemetryPayload, transport: TransportType) {
-    const { deviceId, sensors, timestamp, location } = payload;
+    const { deviceId, sensors, timestamp, location } = telemetryPayloadSchema.parse(payload);
 
-    // Security check: Find or register device
-    let device = await prisma.device.findUnique({
-      where: { deviceId }
-    });
-
-    if (!device) {
-      // Find default municipality
-      const defaultMuni = await prisma.municipality.findFirst();
-      if (!defaultMuni) return;
-
-      device = await prisma.device.create({
-        data: {
-          deviceId,
-          name: `Sensor Station ${deviceId}`,
-          latitude: location.lat,
-          longitude: location.lng,
-          status: 'ONLINE',
-          transport,
-          municipalityId: defaultMuni.id
-        }
-      });
-    } else {
-      // Update device heartbeat and active transport
-      await prisma.device.update({
-        where: { id: device.id },
-        data: {
-          status: 'ONLINE',
-          transport,
-          lastHeartbeat: new Date()
-        }
+    let municipality = await prisma.municipality.findFirst();
+    if (!municipality && process.env.SIMULATION_MODE === 'true') {
+      // Configuration created on first traffic; no seeded devices or readings.
+      municipality = await prisma.municipality.upsert({
+        where: { id: 'simulation-municipality' },
+        update: {},
+        create: { id: 'simulation-municipality', name: 'Simulation Municipality' }
       });
     }
+    if (!municipality) throw new Error('Configure a municipality before ingesting telemetry');
+
+    const device = await prisma.device.upsert({
+      where: { deviceId },
+      create: {
+        deviceId, name: `Sensor Station ${deviceId}`,
+        latitude: location.lat, longitude: location.lng,
+        status: 'ONLINE', transport, lastHeartbeat: new Date(),
+        municipalityId: municipality.id
+      },
+      update: {
+        status: 'ONLINE', transport, lastHeartbeat: new Date(),
+        latitude: location.lat, longitude: location.lng
+      }
+    });
 
     // 1. Save SensorReading
     const reading = await prisma.sensorReading.create({
@@ -78,6 +71,7 @@ export class SensorIngestionService {
     if (evaluation.isAlertTriggerRequired && now - this.lastAlertTriggeredAt > this.alertDebounceMs) {
       this.lastAlertTriggeredAt = now;
       await alertStateMachine.triggerDisasterAlert({
+        isSimulation: process.env.SIMULATION_MODE === 'true',
         type: evaluation.primaryDisasterType,
         riskScore: evaluation.breakdown.overallScore,
         severity: evaluation.breakdown.severity,

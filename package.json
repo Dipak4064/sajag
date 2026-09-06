@@ -9,9 +9,9 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspaces",
-    "dev:api": "npm run dev --workspace=apps/api",
-    "dev:web": "npm run dev --workspace=apps/web",
-    "dev:sim": "npm run dev --workspace=apps/device-sim",
+    "build:packages": "npm run build --workspace=packages/types && npm run build --workspace=packages/validation",
+    "dev:api": "npm run build:packages && npm run db:generate && npm run dev --workspace=apps/api",
+    "dev:sim": "npm run build:packages && npm run dev --workspace=apps/device-sim",
     "build": "npm run build --workspaces",
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces",
@@ -20,7 +20,11 @@
     "db:seed": "npm run db:seed --workspace=apps/api",
     "broker": "node infrastructure/broker.js",
     "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d",
-    "infra:down": "docker compose -f infrastructure/docker-compose.yml down"
+    "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
+    "sim:up": "docker compose -f infrastructure/compose.simulation.yml up -d --build --wait",
+    "sim:down": "docker compose -f infrastructure/compose.simulation.yml down",
+    "sim:logs": "docker compose -f infrastructure/compose.simulation.yml logs -f",
+    "sim:test": "node tests/simulation-smoke.cjs"
   },
   "keywords": [
     "disaster-response",
@@ -34,6 +38,10 @@
   "author": "SAJAG Team",
   "license": "MIT",
   "devDependencies": {
-    "aedes": "^1.1.2"
+    "aedes": "^1.1.2",
+    "@types/swagger-ui-express": "^4.1.8"
+  },
+  "dependencies": {
+    "swagger-ui-express": "^5.0.1"
   }
 }
