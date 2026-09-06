@@ -8,6 +8,8 @@ export function connectionUrls(databaseUrl: string, directUrl?: string) {
     throw new Error('Expected a PostgreSQL connection URL');
   }
   runtime.searchParams.set('connect_timeout', '10');
+  if (!runtime.searchParams.has('connection_limit')) runtime.searchParams.set('connection_limit', '5');
+  if (!runtime.searchParams.has('pool_timeout')) runtime.searchParams.set('pool_timeout', '15');
   const direct = new URL(directUrl || databaseUrl);
   if (!directUrl && direct.hostname.endsWith('.neon.tech')) {
     direct.hostname = direct.hostname.replace('-pooler.', '.');

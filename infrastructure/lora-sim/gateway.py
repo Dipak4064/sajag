@@ -10,6 +10,10 @@ import os
 import queue
 import random
 import threading
+import time
+import uuid
+from collections import deque
+from urllib.parse import urlparse, parse_qs
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -62,6 +66,8 @@ def main():
             radio.stats['forwarding_errors'] += 1
 
     radio = Radio(env, accept, loss_rate)
+    inbox = deque(maxlen=500)
+    inbox_lock = threading.Lock()
 
     def poll():
         while True:
@@ -78,12 +84,20 @@ def main():
         while True:
             payload = received.get()
             try:
+                if payload.get('_radioMessage'):
+                    if payload.get('direction') == 'uplink':
+                        pending.put_nowait({**payload, 'direction': 'downlink',
+                                           'text': 'Gateway received: ' + payload['text']})
+                    else:
+                        with inbox_lock:
+                            inbox.append({**payload, 'receivedAt': time.time()})
+                    continue
                 request = urllib.request.Request(
                     os.getenv('API_URL', 'http://localhost:4000') + '/api/transports/lora',
                     data=json.dumps(payload).encode(),
                     headers={'Content-Type': 'application/json',
                              'X-Gateway-Token': os.environ['LORA_GATEWAY_TOKEN']})
-                with urllib.request.urlopen(request, timeout=5) as response:
+                with urllib.request.urlopen(request, timeout=30) as response:
                     response.read()
                 radio.stats['forwarded'] += 1
             except Exception as error:
@@ -102,12 +116,37 @@ def main():
             self.wfile.write(body)
 
         def do_GET(self):
+            parsed = urlparse(self.path)
+            if parsed.path == '/messages':
+                device = parse_qs(parsed.query).get('deviceId', [''])[0]
+                with inbox_lock:
+                    messages = [m for m in inbox if m['deviceId'] == device]
+                return self.reply(200, {'messages': messages})
             if self.path != '/health':
                 return self.reply(404, {'error': 'Not found'})
             self.reply(200, {'status': 'ok', 'engine': 'SimPy', 'stats': radio.stats,
                              'airtimeMs': round(airtime() * 1000, 3), 'lossRate': loss_rate})
 
         def do_POST(self):
+            if self.path == '/messages':
+                try:
+                    size = int(self.headers.get('Content-Length', '0'))
+                    if not 0 < size <= 4096:
+                        raise ValueError('Expected a small JSON message')
+                    body = json.loads(self.rfile.read(size))
+                    device, text = body.get('deviceId'), body.get('text')
+                    if not isinstance(device, str) or not 1 <= len(device) <= 80:
+                        raise ValueError('Invalid deviceId')
+                    if not isinstance(text, str) or not 1 <= len(text.strip()) <= 160:
+                        raise ValueError('Message must contain 1–160 characters')
+                    packet_id = str(uuid.uuid4())
+                    pending.put_nowait({'_radioMessage': True, 'id': packet_id,
+                                        'deviceId': device, 'text': text.strip(), 'direction': 'uplink'})
+                    return self.reply(202, {'accepted': True, 'id': packet_id})
+                except queue.Full:
+                    return self.reply(503, {'error': 'Radio queue full'})
+                except (ValueError, TypeError, AttributeError) as error:
+                    return self.reply(400, {'error': str(error)})
             if self.path != '/transmit':
                 return self.reply(404, {'error': 'Not found'})
             try:

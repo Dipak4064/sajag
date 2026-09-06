@@ -5,7 +5,7 @@ const html = fs.readFileSync('apps/api/src/public/mobile-sensor.html', 'utf8');
 const elements = new Map();
 const requests = [];
 const context = vm.createContext({
-  console, Date, Math, Number, Object, JSON, AbortSignal,
+  console, Date, Math, Number, Object, JSON, AbortSignal, navigator: {},
   window: { isSecureContext: true, addEventListener() {} },
   document: { getElementById(id) {
     if (!elements.has(id)) elements.set(id, {textContent:'', className:'', classList:{toggle(){}}, children:[], prepend(){}, value:({water:'25',rain:'5',soil:'35'})[id], checkValidity(){return true;}});

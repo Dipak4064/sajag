@@ -3,8 +3,9 @@
 The API probes `DATABASE_URL` first (normally Neon), then `LOCAL_DATABASE_URL`
 only if the primary runtime or migration connection is unavailable. Missing
 `DATABASE_URL` selects local PostgreSQL directly. Each connection has a ten-second
-connection timeout. The selected database stays fixed until the API restarts;
-local writes are not automatically synchronized to Neon.
+connection timeout. During simulation, runtime connection errors (including P2024) also switch subsequent
+telemetry to local PostgreSQL. Failed readings are not replayed. Restarting tries
+Neon first again; local writes are not automatically synchronized to Neon.
 
 `DIRECT_URL` (or `DATABASE_URL_UNPOOLED`) supplies the primary migration connection.
 If omitted, startup derives the direct hostname from a Neon pooled URL, or reuses
@@ -30,3 +31,10 @@ Startup prints the selected database label without printing credentials. Failed
 Docker startup includes recent API and PostgreSQL logs.
 
 Regression check: `npm run build:api && node --test tests/database-startup.cjs`.
+
+MQTT ingestion processes one reading at a time, retaining the latest pending
+reading per device (up to 128 devices). Intermediate readings can be coalesced
+under load. Shared ingestion allows two concurrent workflows; excess HTTP
+telemetry receives 503. Municipality lookup is shared and cached for 60 seconds.
+Default Prisma pool settings are connection_limit=5 and pool_timeout=15;
+explicit URL values remain respected.

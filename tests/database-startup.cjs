@@ -37,8 +37,8 @@ test('database startup selection', async () => {
   delete process.env.DIRECT_URL;
   unavailable = new Set(['ep-test-pooler.region.neon.tech']);
   await prepareDatabase();
-  assert.deepEqual(calls, ['ep-test-pooler.region.neon.tech', 'localhost']);
-  assert.equal(process.env.DATABASE_URL, process.env.DIRECT_URL);
+  assert.deepEqual(calls, ['ep-test-pooler.region.neon.tech', 'localhost', 'localhost']);
+  assert.equal(new URL(process.env.DATABASE_URL).host, new URL(process.env.DIRECT_URL).host);
   process.env.DATABASE_URL = primary;
   delete process.env.DIRECT_URL;
   unavailable.add('localhost');
@@ -61,7 +61,7 @@ test('migration connection failure switches both URLs to local; schema errors fa
   assert.equal(migrations.length, 2);
   assert.equal(new URL(migrations[0].DATABASE_URL).hostname, 'ep-test-pooler.region.neon.tech');
   assert.equal(new URL(migrations[1].DATABASE_URL).hostname, 'localhost');
-  assert.equal(migrations[1].DATABASE_URL, migrations[1].DIRECT_URL);
+  assert.equal(new URL(migrations[1].DATABASE_URL).host, new URL(migrations[1].DIRECT_URL).host);
   assert.equal(process.env.DATABASE_URL, migrations[1].DATABASE_URL);
   migrations.length = 0;
   process.env.DATABASE_URL = primary;

@@ -1,5 +1,6 @@
 import { telemetryPayloadSchema } from '#sajag-validation';
-import { prisma } from '../../shared/database/prisma';
+import { IngestionGate } from '../../shared/database/ingestion-gate';
+import { prisma, recoverDatabase } from '../../shared/database/prisma';
 import { WebSocketService } from '../../shared/websocket/socket.server';
 import { riskEngine } from './risk.service';
 import { alertStateMachine } from '../alerts/alert.service';
@@ -7,24 +8,45 @@ import { config } from '../../config/env.config';
 import { TelemetryPayload, TransportType } from '#sajag-types';
 
 export class SensorIngestionService {
+  private gate = new IngestionGate();
+  private municipalityLookup: Promise<{ id: string } | null> | undefined;
+  private municipalityClient = prisma;
+  private municipalityExpires = 0;
   private ws = WebSocketService.getInstance();
   private lastAlertTriggeredAt: number = 0;
   private alertDebounceMs = 30000;
 
   public async ingestReading(payload: TelemetryPayload, transport: TransportType) {
+    return this.gate.run(async () => {
+      try { return await this.persistReading(payload, transport); }
+      catch (error) { await recoverDatabase(error); throw error; }
+    });
+  }
+
+  private async persistReading(payload: TelemetryPayload, transport: TransportType) {
+    const db = prisma;
     const { deviceId, sensors, timestamp, location } = telemetryPayloadSchema.parse(payload);
 
-    let municipality = await prisma.municipality.findFirst();
-    if (!municipality && config.isSimulationMode) {
-      municipality = await prisma.municipality.upsert({
-        where: { id: 'simulation-municipality' },
-        update: {},
-        create: { id: 'simulation-municipality', name: 'Simulation Municipality' }
-      });
+    if (this.municipalityClient !== db || Date.now() > this.municipalityExpires) {
+      this.municipalityLookup = undefined;
+      this.municipalityClient = db;
     }
+    if (!this.municipalityLookup) {
+      this.municipalityExpires = Date.now() + 60000;
+      this.municipalityLookup = (async () => {
+        const existing = await db.municipality.findFirst({ select: { id: true } });
+        if (existing || !config.isSimulationMode) return existing;
+        return db.municipality.upsert({
+          where: { id: 'simulation-municipality' }, update: {},
+          create: { id: 'simulation-municipality', name: 'Simulation Municipality' },
+          select: { id: true }
+        });
+      })().catch(error => { this.municipalityLookup = undefined; throw error; });
+    }
+    const municipality = await this.municipalityLookup;
     if (!municipality) throw new Error('Configure a municipality before ingesting telemetry');
 
-    const device = await prisma.device.upsert({
+    const device = await db.device.upsert({
       where: { deviceId },
       create: {
         deviceId, name: `Sensor Station ${deviceId}`,
@@ -38,7 +60,7 @@ export class SensorIngestionService {
       }
     });
 
-    const reading = await prisma.sensorReading.create({
+    const reading = await db.sensorReading.create({
       data: {
         deviceId: device.id,
         acceleration: sensors.acceleration,
