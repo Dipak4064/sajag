@@ -62,12 +62,15 @@ export const sosStatusUpdateSchema = z.object({
 
 // Citizen Report
 export const citizenReportCreateSchema = z.object({
-  disasterType: z.enum(['FLOOD', 'LANDSLIDE', 'EARTHQUAKE', 'FOREST_FIRE', 'STORM', 'OTHER']),
+  disasterType: z.enum(['FLOOD', 'LANDSLIDE', 'EARTHQUAKE', 'FOREST_FIRE', 'STORM', 'ROAD_BLOCKED', 'OTHER']),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   addressText: z.string().optional(),
   description: z.string().min(5),
-  mediaUrls: z.array(z.string().url()).default([])
+  // Uploaded photos come back from storageService as API-relative paths
+  // (e.g. "/api/files/reports/xyz.jpg"), not absolute URLs — matches how
+  // photoUrl is stored elsewhere, so this must not require a full URL.
+  mediaUrls: z.array(z.string()).default([])
 });
 
 // Scenario Simulation
@@ -99,7 +102,15 @@ export const authRegisterSchema = z.object({
   longitude: z.number().default(85.3240)
 });
 
-export const userCreateSchema = authRegisterSchema.extend({
-  municipalityId: z.string().min(1).optional(),
-  status: z.enum(['SAFE', 'UNSAFE', 'NO_RESPONSE', 'UNKNOWN']).default('UNKNOWN')
+// Passwordless self check-in used by the citizen portal's one-step
+// registration (name + phone + email + optional RustFS photo, no password).
+// These accounts authenticate only via the token returned at registration —
+// they have no passwordHash and cannot use the email/password login.
+export const quickRegisterSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().min(7),
+  email: z.string().email(),
+  photoUrl: z.string().optional(),
+  latitude: z.number().default(27.7172),
+  longitude: z.number().default(85.3240)
 });

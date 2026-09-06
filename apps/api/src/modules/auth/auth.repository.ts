@@ -39,6 +39,24 @@ export class AuthRepository {
       data
     });
   }
+
+  async createQuickUser(data: {
+    name: string;
+    email: string;
+    phone: string;
+    photoUrl?: string;
+    latitude: number;
+    longitude: number;
+    municipalityId: string;
+  }) {
+    return prisma.user.create({
+      data: {
+        ...data,
+        role: 'CITIZEN',
+        passwordHash: null
+      }
+    });
+  }
 }
 
 export const authRepository = new AuthRepository();

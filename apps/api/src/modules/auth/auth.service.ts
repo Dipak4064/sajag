@@ -65,6 +65,59 @@ export class AuthService {
     };
   }
 
+  async quickRegister(data: {
+    name: string;
+    phone: string;
+    email: string;
+    photoUrl?: string;
+    latitude: number;
+    longitude: number;
+  }) {
+    const existingUser = await this.repo.findUserByEmail(data.email);
+    if (existingUser) {
+      throw AppError.badRequest(
+        existingUser.passwordHash
+          ? 'This email already has an account — use Sign In instead.'
+          : 'This email is already checked in.'
+      );
+    }
+
+    const defaultMuni = await this.repo.findDefaultMunicipality();
+    if (!defaultMuni) {
+      throw new AppError('No municipality configured', 500);
+    }
+
+    const user = await this.repo.createQuickUser({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      photoUrl: data.photoUrl,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      municipalityId: defaultMuni.id
+    });
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, municipalityId: user.municipalityId },
+      config.jwtSecret,
+      { expiresIn: config.jwtExpiresIn as any }
+    );
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        photoUrl: user.photoUrl,
+        latitude: user.latitude,
+        longitude: user.longitude
+      }
+    };
+  }
+
   async login(data: { email: string; password: string }) {
     const user = await this.repo.findUserByEmail(data.email);
     if (!user || !user.passwordHash) {
@@ -90,6 +143,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        photoUrl: user.photoUrl,
         latitude: user.latitude,
         longitude: user.longitude
       }

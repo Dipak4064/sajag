@@ -37,13 +37,18 @@ export class ReportsController {
 
       const data = citizenReportCreateSchema.parse(bodyData);
 
-      const defaultUser = await this.repo.findDefaultUser();
-      if (!defaultUser) {
-        return res.status(500).json({ success: false, message: 'System uninitialized' });
+      const authUser = (req as any).user;
+      let targetUserId = authUser?.id || authUser?.userId;
+      if (!targetUserId) {
+        const defaultUser = await this.repo.findDefaultUser();
+        if (!defaultUser) {
+          return res.status(500).json({ success: false, message: 'System uninitialized' });
+        }
+        targetUserId = defaultUser.id;
       }
 
       const report = await this.repo.createReport({
-        userId: defaultUser.id,
+        userId: targetUserId,
         disasterType: data.disasterType,
         latitude: data.latitude,
         longitude: data.longitude,
@@ -52,8 +57,13 @@ export class ReportsController {
         mediaUrls: JSON.stringify(data.mediaUrls)
       });
 
-      this.ws.emit('report:new', report);
-      res.status(201).json({ success: true, data: report });
+      const responseData = {
+        ...report,
+        mediaUrls: data.mediaUrls
+      };
+
+      this.ws.emit('report:new', responseData);
+      res.status(201).json({ success: true, data: responseData });
     } catch (err) {
       next(err);
     }
@@ -62,7 +72,16 @@ export class ReportsController {
   public getAllReports = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const reports = await this.repo.findAllReports(50);
-      res.json({ success: true, data: reports });
+      const parsedReports = reports.map((r) => {
+        let mediaUrls: string[] = [];
+        try {
+          mediaUrls = typeof r.mediaUrls === 'string' ? JSON.parse(r.mediaUrls) : (r.mediaUrls || []);
+        } catch {
+          mediaUrls = [];
+        }
+        return { ...r, mediaUrls };
+      });
+      res.json({ success: true, data: parsedReports });
     } catch (err) {
       next(err);
     }
