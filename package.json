@@ -1,0 +1,35 @@
+{
+  "name": "sajag-prakop-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAJAG / PRAKOP: Disaster Alert, Community Response & Virtual-IoT Emergency Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:sim": "npm run dev --workspace=apps/device-sim",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces",
+    "db:generate": "npm run db:generate --workspace=apps/api",
+    "db:push": "npm run db:push --workspace=apps/api",
+    "db:seed": "npm run db:seed --workspace=apps/api",
+    "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infrastructure/docker-compose.yml down"
+  },
+  "keywords": [
+    "disaster-response",
+    "early-warning",
+    "iot-simulator",
+    "nepal",
+    "emergency-alert",
+    "twilio-ivr",
+    "whisper"
+  ],
+  "author": "SAJAG Team",
+  "license": "MIT"
+}

@@ -1,0 +1,66 @@
+import mqtt, { MqttClient } from 'mqtt';
+import pino from 'pino';
+import { TelemetryPayload } from '@sajag/types';
+
+const logger = pino({ name: 'DeviceSim:MQTT' });
+
+export class DeviceMqttClient {
+  private client: MqttClient | null = null;
+  private isConnected = false;
+
+  constructor(private brokerUrl: string, private options: mqtt.IClientOptions = {}) {}
+
+  public connect(): Promise<void> {
+    return new Promise((resolve) => {
+      logger.info(`Connecting to MQTT broker at ${this.brokerUrl}...`);
+      this.client = mqtt.connect(this.brokerUrl, {
+        reconnectPeriod: 2000,
+        connectTimeout: 5000,
+        ...this.options
+      });
+
+      this.client.on('connect', () => {
+        this.isConnected = true;
+        logger.info('Connected to MQTT Broker successfully.');
+        resolve();
+      });
+
+      this.client.on('error', (err) => {
+        logger.warn(`MQTT connection error: ${err.message}. Retrying...`);
+      });
+
+      this.client.on('close', () => {
+        this.isConnected = false;
+        logger.warn('MQTT connection closed.');
+      });
+    });
+  }
+
+  public publishTelemetry(payload: TelemetryPayload): boolean {
+    if (!this.client || !this.isConnected) {
+      return false;
+    }
+    const topic = `prakop/device/${payload.deviceId}/telemetry`;
+    this.client.publish(topic, JSON.stringify(payload), { qos: 1 }, (err) => {
+      if (err) {
+        logger.error(`Failed to publish telemetry to ${topic}: ${err.message}`);
+      }
+    });
+    return true;
+  }
+
+  public publishHeartbeat(deviceId: string): boolean {
+    if (!this.client || !this.isConnected) {
+      return false;
+    }
+    const topic = `prakop/device/${deviceId}/heartbeat`;
+    this.client.publish(topic, JSON.stringify({ deviceId, timestamp: new Date().toISOString() }), { qos: 0 });
+    return true;
+  }
+
+  public disconnect() {
+    if (this.client) {
+      this.client.end();
+    }
+  }
+}

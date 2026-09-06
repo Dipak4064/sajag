@@ -1,0 +1,168 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Municipality {
+  id          String        @id @default(cuid())
+  name        String
+  users       User[]
+  devices     Device[]
+  shelters    Shelter[]
+  rescueTeams RescueTeam[]
+}
+
+model User {
+  id             String          @id @default(cuid())
+  name           String
+  email          String?         @unique
+  passwordHash   String?
+  phone          String
+  role           String          @default("CITIZEN") // CITIZEN | RESPONDER | RESCUE_TEAM | AUTHORITY | ADMIN
+  latitude       Float
+  longitude      Float
+  status         String          @default("UNKNOWN") // SAFE | UNSAFE | NO_RESPONSE | UNKNOWN
+  municipalityId String
+  municipality   Municipality    @relation(fields: [municipalityId], references: [id])
+  responses      UserResponse[]
+  sosRequests    SOSRequest[]
+  reports        CitizenReport[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Device {
+  id            String          @id @default(cuid())
+  deviceId      String          @unique
+  name          String
+  latitude      Float
+  longitude     Float
+  status        String          @default("ONLINE") // ONLINE | OFFLINE
+  transport     String          @default("MQTT")   // MQTT | LORA_SIM
+  lastHeartbeat DateTime?
+  municipalityId String
+  municipality  Municipality    @relation(fields: [municipalityId], references: [id])
+  readings      SensorReading[]
+  createdAt     DateTime        @default(now())
+}
+
+model SensorReading {
+  id            String   @id @default(cuid())
+  deviceId      String
+  device        Device   @relation(fields: [deviceId], references: [id])
+  acceleration  Float
+  waterLevel    Float
+  soilMoisture  Float
+  rainfall      Float
+  transport     String   // MQTT | LORA_SIM
+  timestamp     DateTime @default(now())
+}
+
+model DisasterEvent {
+  id           String   @id @default(cuid())
+  type         String   // EARTHQUAKE | FLOOD | LANDSLIDE
+  riskScore    Float
+  severity     String   // LOW | MODERATE | HIGH | CRITICAL
+  latitude     Float
+  longitude    Float
+  radiusMeters Float    @default(5000)
+  status       String   @default("DETECTED") // DETECTED | ANALYZING | CONFIRMED | NOTIFYING | RESOLVED
+  title        String?
+  description  String?
+  isSimulation Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  alerts       Alert[]
+}
+
+model Alert {
+  id         String         @id @default(cuid())
+  eventId    String
+  event      DisasterEvent  @relation(fields: [eventId], references: [id])
+  userId     String
+  status     String         @default("NOTIFYING") // NOTIFYING | WAITING_RESPONSE | SAFE | UNSAFE | NO_RESPONSE | ESCALATED
+  attempts   Int            @default(0)
+  createdAt  DateTime       @default(now())
+  responses  UserResponse[]
+}
+
+model UserResponse {
+  id        String   @id @default(cuid())
+  alertId   String
+  alert     Alert    @relation(fields: [alertId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  response  String   // SAFE | UNSAFE
+  message   String?  // transcribed text from Whisper
+  urgency   String?  // LOW | MEDIUM | HIGH | CRITICAL
+  createdAt DateTime @default(now())
+}
+
+model SOSRequest {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  latitude         Float
+  longitude        Float
+  addressText      String?
+  description      String
+  numberOfPeople   Int         @default(1)
+  medicalEmergency String      @default("NONE") // NONE | MINOR | SEVERE | CRITICAL
+  status           String      @default("PENDING") // PENDING | ACKNOWLEDGED | ASSIGNED | IN_PROGRESS | RESOLVED | CANCELLED
+  contactNumber    String
+  assignedTeamId   String?
+  assignedTeam     RescueTeam? @relation(fields: [assignedTeamId], references: [id])
+  createdAt        DateTime    @default(now())
+  resolvedAt       DateTime?
+}
+
+model RescueTeam {
+  id               String       @id @default(cuid())
+  name             String
+  teamType         String       // ARMY | POLICE | RED_CROSS | FIRE_DEPARTMENT | LOCAL_VOLUNTEER
+  status           String       @default("AVAILABLE") // AVAILABLE | DISPATCHED | ON_SITE | RESTING | OFFLINE
+  latitude         Float
+  longitude        Float
+  capacity         Int          @default(6)
+  contactRadioFreq String?
+  leadOfficerName  String
+  municipalityId   String
+  municipality     Municipality @relation(fields: [municipalityId], references: [id])
+  assignments      SOSRequest[]
+  createdAt        DateTime     @default(now())
+}
+
+model Shelter {
+  id                 String       @id @default(cuid())
+  name               String
+  nameNe             String?
+  latitude           Float
+  longitude          Float
+  address            String
+  totalCapacity      Int
+  currentOccupancy   Int          @default(0)
+  hasMedicalFacility Boolean      @default(false)
+  hasFoodWater       Boolean      @default(true)
+  hasBackupPower     Boolean      @default(false)
+  isActive           Boolean      @default(true)
+  municipalityId     String
+  municipality       Municipality @relation(fields: [municipalityId], references: [id])
+  createdAt          DateTime     @default(now())
+}
+
+model CitizenReport {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  disasterType String   // FLOOD | LANDSLIDE | EARTHQUAKE | FOREST_FIRE | STORM | OTHER
+  latitude     Float
+  longitude    Float
+  addressText  String?
+  description  String
+  mediaUrls    String   @default("[]") // JSON string array
+  status       String   @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | VERIFIED | REJECTED | RESOLVED
+  createdAt    DateTime @default(now())
+}
