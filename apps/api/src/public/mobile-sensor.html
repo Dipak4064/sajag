@@ -261,6 +261,20 @@
     let motionEnabled = false;
     let lastMotionAt = 0;
 
+    function apiBase() {
+      const origin = window.location.origin;
+      const port = window.location.port;
+      if (!origin || origin === 'null') return 'http://localhost:4000';
+      if (['3000', '3001', '4001', '4002'].includes(port)) {
+        return `${window.location.protocol}//${window.location.hostname}:4000`;
+      }
+      return origin;
+    }
+
+    function apiPath(path) {
+      return `${apiBase()}${path}`;
+    }
+
     const coords = {
       'ESP32-KTM-001': { lat: 27.6895, lng: 85.3021 },
       'ESP32-KTM-002': { lat: 27.7153, lng: 85.3015 },
@@ -445,7 +459,7 @@
         : { 'Content-Type': 'application/json', 'x-gateway-token': 'local-simulation-gateway' };
 
       try {
-        const res = await fetch(endpoint, {
+        const res = await fetch(apiPath(endpoint), {
           method: 'POST',
           headers,
           body: JSON.stringify(payload)
@@ -469,7 +483,9 @@
       const deviceId = document.getElementById('stationSelect').value;
       lastTriggeredDeviceId = deviceId;
       try {
-        const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/telemetry?limit=10`);
+        const res = await fetch(apiPath(`/api/devices/${encodeURIComponent(deviceId)}/telemetry?limit=10`), {
+          cache: 'no-store'
+        });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
           log(`Telemetry fetch ${res.status}: ${json.message || 'connected device not available'}`, 'err');
@@ -516,7 +532,7 @@
       }
       const alertId = activeAlertId || 'demo-alert-id';
       try {
-        const res = await fetch(`/api/alerts/${alertId}/response`, {
+        const res = await fetch(apiPath(`/api/alerts/${alertId}/response`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ Digits: digit })
@@ -536,7 +552,7 @@
       const alertId = activeAlertId || 'demo-alert-id';
       const msg = document.getElementById('voiceMsg').value;
       try {
-        const res = await fetch(`/api/alerts/${alertId}/voice-upload`, {
+        const res = await fetch(apiPath(`/api/alerts/${alertId}/voice-upload`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ RecordingUrl: 'mock-recording', message: msg })

@@ -4,12 +4,16 @@ import { logger } from '../../shared/logging/logger';
 export class TwilioCallService {
   private client: twilio.Twilio | null = null;
   private fromNumber: string = '';
+  private targetPhone: string = '';
+  private callUrl: string = '';
   private isConfigured: boolean = false;
 
   constructor() {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken  = process.env.TWILIO_AUTH_TOKEN;
     this.fromNumber  = process.env.TWILIO_PHONE_NUMBER || '';
+    this.targetPhone = process.env.TWILIO_TARGET_PHONE || '';
+    this.callUrl = process.env.TWILIO_CALL_URL || '';
 
     if (accountSid && authToken && accountSid.startsWith('AC') && this.fromNumber) {
       try {
@@ -56,14 +60,24 @@ export class TwilioCallService {
     recipientPhone: string,
     userName: string
   ): Promise<{ status: 'queued' | 'failed' | 'not_configured'; sid?: string; code?: number }> {
+    if (this.targetPhone && recipientPhone !== this.targetPhone) {
+      logger.info(`Twilio target restriction: skipping ${recipientPhone}; configured target is ${this.targetPhone}`);
+      return { status: 'not_configured' };
+    }
+
     if (this.isConfigured && this.client) {
       try {
-        const call = await this.client.calls.create({
+        const callOptions: Parameters<typeof this.client.calls.create>[0] = {
           to:    recipientPhone,
           from:  this.fromNumber,
-          // Inline TwiML — no public callback URL needed; works on trial accounts
-          twiml: this.buildEmergencyTwiml(userName, alertId)
-        });
+        };
+
+        // Use a verified Twilio-hosted voice template when configured. Otherwise
+        // retain the app's alert-specific IVR message and DTMF workflow.
+        if (this.callUrl) callOptions.url = this.callUrl;
+        else callOptions.twiml = this.buildEmergencyTwiml(userName, alertId);
+
+        const call = await this.client.calls.create(callOptions);
         logger.info(`Twilio call initiated to ${recipientPhone} for alert ${alertId} (SID: ${call.sid})`);
         return { status: 'queued', sid: call.sid };
       } catch (err: any) {
@@ -106,4 +120,3 @@ export class TwilioCallService {
 }
 
 export const twilioService = new TwilioCallService();
-
